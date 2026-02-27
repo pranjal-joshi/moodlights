@@ -1,6 +1,8 @@
 """Config flow for MoodLights."""
 from __future__ import annotations
 
+import uuid
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
@@ -38,18 +40,20 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - enter mood name."""
-        if user_input is not None:
-            self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
-            return await self.async_step_select_lights()
+        if user_input is None:
+            await self.async_set_unique_id(str(uuid.uuid4()))
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({
+                    vol.Required(CONF_MOOD_NAME, description={"suggested_value": "Movie Night"}): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                }),
+            )
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_MOOD_NAME, description={"suggested_value": "Movie Night"}): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }),
-        )
+        self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
+        self.abort_if_unique_id_configured()
+        return await self.async_step_select_lights()
 
     async def async_step_select_lights(self, user_input: dict | None = None) -> FlowResult:
         """Select light entities for this mood."""
