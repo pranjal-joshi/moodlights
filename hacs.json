@@ -1,8 +1,7 @@
 {
   "name": "MoodLights",
-  "zip_release": true,
+  "zip_release": false,
   "hide_default_branch": false,
   "homeassistant": "2024.10.0",
-  "hacs": "1.32.0",
-  "filename": "moodlights.zip"
+  "hacs": "1.32.0"
 }
