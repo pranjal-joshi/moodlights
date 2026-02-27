@@ -4,9 +4,9 @@ activate:
   fields:
     entity_id:
       name: Mood Entity
-      description: The mood entity to activate
+      description: The mood entity to activate (e.g., select.moodlights_mood_0)
       required: true
-      example: "select.living_room_mood"
+      example: "select.moodlights_mood_0"
 
 restore:
   name: Restore Previous State
@@ -16,14 +16,4 @@ restore:
       name: Mood Entity
       description: The mood entity to restore
       required: true
-      example: "select.living_room_mood"
-
-get_status:
-  name: Get Mood Status
-  description: Get the current status of a mood
-  fields:
-    entity_id:
-      name: Mood Entity
-      description: The mood entity to check
-      required: true
-      example: "select.living_room_mood"
+      example: "select.moodlights_mood_0"
