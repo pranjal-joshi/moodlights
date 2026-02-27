@@ -1,5 +1,7 @@
 # MoodLights
 
+![Icon](icon.png)
+
 Easy mood-based light management for Home Assistant.
 
 [![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights)](https://github.com/pranjal-joshi/moodlights/releases)
