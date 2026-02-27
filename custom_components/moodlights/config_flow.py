@@ -7,33 +7,26 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
-from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers.entity_registry import async_get, EntityRegistry
 
 from .const import (
-    CONF_AUTO_ACTIVATE,
-    CONF_AUTO_ACTIVATE_DAYS,
-    CONF_AUTO_ACTIVATE_TIME,
-    CONF_CONFIRMATION_MODE,
-    CONF_EXCLUSION_ENTITIES,
+    CONF_AREA,
     CONF_EXCLUSION_HELPERS,
-    CONF_EXCLUSION_STATES,
-    CONF_LIGHT_ENTITIES,
-    CONF_LIGHT_PATTERN,
-    CONF_MAX_SAVED_STATES,
-    CONF_MOODS,
-    CONF_NAME,
-    CONF_PRESETS,
-    CONF_PRESET_BRIGHTNESS,
-    CONF_PRESET_COLOR_TEMP,
-    CONF_PRESET_NAME,
-    CONF_PRESET_RGB_COLOR,
-    CONF_PRESET_TRANSITION,
+    CONF_LIGHT_BRIGHTNESS,
+    CONF_LIGHT_COLOR_TEMP_KELVIN,
+    CONF_LIGHT_CONFIG,
+    CONF_LIGHT_EFFECT,
+    CONF_LIGHT_POWER,
+    CONF_LIGHT_RGB_COLOR,
     CONF_SAVE_STATES,
-    DEFAULT_CONFIRMATION,
-    DEFAULT_MAX_SAVED_STATES,
-    DEFAULT_SAVE_STATES,
-    DEFAULT_TRANSITION,
+    DEFAULT_COLOR_TEMP_KELVIN,
     DOMAIN,
+    LIGHT_POWER_DONT_CHANGE,
+    LIGHT_POWER_OFF,
+    LIGHT_POWER_ON,
+    MAX_COLOR_TEMP_KELVIN,
+    MIN_COLOR_TEMP_KELVIN,
+    POWER_OPTIONS,
 )
 
 
@@ -44,165 +37,51 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialize the config flow."""
-        self.moods: list[dict] = []
-        self.current_mood: dict | None = None
+        self.area_id: str | None = None
+        self.area_name: str | None = None
+        self.light_config: dict = {}
+        self.exclusion_helpers: list[str] = []
+        self.save_states: bool = True
+        self.all_lights: list[dict] = []
+        self.current_light_index: int = 0
+        self._entity_registry: EntityRegistry | None = None
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step - select area."""
         if user_input is not None:
-            return await self.async_step_create_mood()
+            self.area_id = user_input.get(CONF_AREA)
+            registry = async_get(self.hass)
+            self._entity_registry = registry
+            
+            area = self.hass.states.get(f"area.{self.area_id}")
+            self.area_name = area.attributes.get("name", self.area_id) if area else self.area_id
+            
+            self.all_lights = await self._get_lights_in_area(self.area_id)
+            
+            if not self.all_lights:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._get_area_schema(),
+                    errors={"base": "no_lights_in_area"},
+                )
+            
+            self.current_light_index = 0
+            self.light_config = {}
+            return await self.async_step_configure_light()
 
-        return self.async_show_form(step_id="user")
+        return self.async_show_form(step_id="user", data_schema=self._get_area_schema())
 
-    async def async_step_create_mood(self, user_input: dict | None = None) -> FlowResult:
-        """Handle creating a new mood."""
-        if user_input is not None:
-            self.current_mood = {
-                CONF_NAME: user_input.get(CONF_NAME, "New Mood"),
-                CONF_PRESETS: [],
-                CONF_LIGHT_ENTITIES: [],
-                CONF_EXCLUSION_HELPERS: [],
-                CONF_EXCLUSION_STATES: [],
-                CONF_CONFIRMATION_MODE: DEFAULT_CONFIRMATION,
-                CONF_SAVE_STATES: DEFAULT_SAVE_STATES,
-                CONF_MAX_SAVED_STATES: DEFAULT_MAX_SAVED_STATES,
-            }
-            return await self.async_step_select_lights()
-
-        data_schema = vol.Schema(
+    def _get_area_schema(self) -> vol.Schema:
+        """Get area selection schema."""
+        areas = self._get_available_areas()
+        
+        return vol.Schema(
             {
-                vol.Required(CONF_NAME): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }
-        )
-
-        return self.async_show_form(step_id="create_mood", data_schema=data_schema)
-
-    async def async_step_select_lights(self, user_input: dict | None = None) -> FlowResult:
-        """Handle selecting lights for the mood."""
-        if user_input is not None:
-            if self.current_mood:
-                self.current_mood[CONF_LIGHT_ENTITIES] = user_input.get(CONF_LIGHT_ENTITIES, [])
-                self.current_mood[CONF_LIGHT_PATTERN] = user_input.get(CONF_LIGHT_PATTERN, "")
-            return await self.async_step_add_preset()
-
-        data_schema = vol.Schema(
-            {
-                vol.Optional(CONF_LIGHT_ENTITIES): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        multiple=True,
-                        filter=selector.EntityFilterSelectorConfig(domain="light"),
-                    )
-                ),
-                vol.Optional(CONF_LIGHT_PATTERN): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }
-        )
-
-        return self.async_show_form(
-            step_id="select_lights", data_schema=data_schema, last_step=False
-        )
-
-    async def async_step_add_preset(self, user_input: dict | None = None) -> FlowResult:
-        """Handle adding a preset to the mood."""
-        if user_input is not None:
-            if self.current_mood and user_input.get(CONF_PRESET_NAME):
-                preset = {
-                    CONF_PRESET_NAME: user_input[CONF_PRESET_NAME],
-                    CONF_PRESET_BRIGHTNESS: user_input.get(CONF_PRESET_BRIGHTNESS, 100),
-                    CONF_PRESET_COLOR_TEMP: user_input.get(CONF_PRESET_COLOR_TEMP),
-                    CONF_PRESET_RGB_COLOR: user_input.get(CONF_PRESET_RGB_COLOR),
-                    CONF_PRESET_TRANSITION: user_input.get(CONF_PRESET_TRANSITION, DEFAULT_TRANSITION),
-                }
-                self.current_mood[CONF_PRESETS].append(preset)
-
-            return await self.async_step_preset_confirm()
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_PRESET_NAME): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-                vol.Optional(CONF_PRESET_BRIGHTNESS, default=100): vol.All(
-                    vol.Coerce(int), vol.Range(min=0, max=100)
-                ),
-                vol.Optional(CONF_PRESET_COLOR_TEMP): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=153, max=500, step=1, unit_of_measurement="mired"
-                    )
-                ),
-                vol.Optional(CONF_PRESET_RGB_COLOR): selector.ColorRGBSelector(),
-                vol.Optional(CONF_PRESET_TRANSITION, default=DEFAULT_TRANSITION): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=30)
-                ),
-            }
-        )
-
-        return self.async_show_form(step_id="add_preset", data_schema=data_schema)
-
-    async def async_step_preset_confirm(self, user_input: dict | None = None) -> FlowResult:
-        """Confirm preset addition and ask if user wants to add more."""
-        if user_input is not None:
-            if user_input.get("add_another"):
-                return await self.async_step_add_preset()
-            return await self.async_step_exclusion_rules()
-
-        data_schema = vol.Schema(
-            {
-                vol.Required("add_another", default=False): bool,
-            }
-        )
-
-        return self.async_show_form(step_id="preset_confirm", data_schema=data_schema)
-
-    async def async_step_exclusion_rules(self, user_input: dict | None = None) -> FlowResult:
-        """Handle exclusion rules configuration."""
-        if user_input is not None and self.current_mood:
-            self.current_mood[CONF_EXCLUSION_HELPERS] = user_input.get(CONF_EXCLUSION_HELPERS, [])
-            self.current_mood[CONF_EXCLUSION_STATES] = user_input.get(CONF_EXCLUSION_STATES, [])
-            return await self.async_step_confirmation()
-
-        data_schema = vol.Schema(
-            {
-                vol.Optional(CONF_EXCLUSION_HELPERS): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        multiple=True,
-                        filter=selector.EntityFilterSelectorConfig(
-                            domain=["input_boolean", "switch", "binary_sensor"]
-                        ),
-                    )
-                ),
-                vol.Optional(CONF_EXCLUSION_STATES): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        multiple=True,
-                        filter=selector.EntityFilterSelectorConfig(
-                            domain=["media_player", "person", "sensor"]
-                        ),
-                    )
-                ),
-            }
-        )
-
-        return self.async_show_form(step_id="exclusion_rules", data_schema=data_schema)
-
-    async def async_step_confirmation(self, user_input: dict | None = None) -> FlowResult:
-        """Handle confirmation mode configuration."""
-        if user_input is not None and self.current_mood:
-            self.current_mood[CONF_CONFIRMATION_MODE] = user_input.get(
-                CONF_CONFIRMATION_MODE, DEFAULT_CONFIRMATION
-            )
-            return await self.async_step_state_settings()
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_CONFIRMATION_MODE, default=DEFAULT_CONFIRMATION): selector.SelectSelector(
+                vol.Required(CONF_AREA): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": "none", "label": "No confirmation"},
-                            {"value": "notify", "label": "Notify only"},
-                            {"value": "approve", "label": "Require approval"},
+                            {"value": area["id"], "label": area["name"]}
+                            for area in areas
                         ],
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
@@ -210,63 +89,179 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="confirmation", data_schema=data_schema)
+    def _get_available_areas(self) -> list[dict]:
+        """Get list of available areas with lights."""
+        areas = []
+        for state in self.hass.states.async_all("area"):
+            area_id = state.entity_id
+            lights = self.hass.states.async_all("light")
+            area_lights = [
+                l for l in lights 
+                if l.attributes.get("area_id") == area_id.replace("area.", "")
+            ]
+            if area_lights:
+                areas.append({
+                    "id": area_id.replace("area.", ""),
+                    "name": area.attributes.get("name", area_id)
+                })
+        return areas
 
-    async def async_step_state_settings(self, user_input: dict | None = None) -> FlowResult:
-        """Handle state settings configuration."""
-        if user_input is not None and self.current_mood:
-            self.current_mood[CONF_SAVE_STATES] = user_input.get(CONF_SAVE_STATES, DEFAULT_SAVE_STATES)
-            self.current_mood[CONF_MAX_SAVED_STATES] = user_input.get(
-                CONF_MAX_SAVED_STATES, DEFAULT_MAX_SAVED_STATES
+    async def _get_lights_in_area(self, area_id: str) -> list[dict]:
+        """Get all lights in an area with their capabilities."""
+        lights = []
+        for state in self.hass.states.async_all("light"):
+            if state.attributes.get("area_id") == area_id:
+                supported_modes = state.attributes.get("supported_color_modes", [])
+                effect_list = state.attributes.get("effect_list", [])
+                
+                light_info = {
+                    "entity_id": state.entity_id,
+                    "name": state.name,
+                    "supported_color_modes": supported_modes,
+                    "effect_list": effect_list,
+                    "has_brightness": "brightness" in supported_modes or "br" in supported_modes,
+                    "has_color_temp": "color_temp" in supported_modes,
+                    "has_rgb": "rgb" in supported_modes or "hs" in supported_modes or "xy" in supported_modes,
+                    "has_effect": bool(effect_list),
+                    "is_on_off_only": supported_modes == ["on_off"] or supported_modes == ["onoff"],
+                }
+                lights.append(light_info)
+        
+        return lights
+
+    async def async_step_configure_light(self, user_input: dict | None = None) -> FlowResult:
+        """Configure individual light settings."""
+        if user_input is not None:
+            light = self.all_lights[self.current_light_index]
+            entity_id = light["entity_id"]
+            
+            config = {}
+            if light["is_on_off_only"]:
+                config[CONF_LIGHT_POWER] = user_input.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+            else:
+                if user_input.get(CONF_LIGHT_BRIGHTNESS):
+                    config[CONF_LIGHT_BRIGHTNESS] = user_input[CONF_LIGHT_BRIGHTNESS]
+                
+                if user_input.get(CONF_LIGHT_COLOR_TEMP_KELVIN):
+                    config[CONF_LIGHT_COLOR_TEMP_KELVIN] = user_input[CONF_LIGHT_COLOR_TEMP_KELVIN]
+                
+                if user_input.get(CONF_LIGHT_RGB_COLOR):
+                    config[CONF_LIGHT_RGB_COLOR] = list(user_input[CONF_LIGHT_RGB_COLOR])
+                
+                if user_input.get(CONF_LIGHT_EFFECT):
+                    config[CONF_LIGHT_EFFECT] = user_input[CONF_LIGHT_EFFECT]
+                
+                config[CONF_LIGHT_POWER] = user_input.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+            
+            self.light_config[entity_id] = config
+            
+            self.current_light_index += 1
+            if self.current_light_index < len(self.all_lights):
+                return await self.async_step_configure_light()
+            else:
+                return await self.async_step_exclusions()
+
+        light = self.all_lights[self.current_light_index]
+        return self.async_show_form(
+            step_id="configure_light",
+            data_schema=self._get_light_config_schema(light),
+            description_placeholders={"light_name": light["name"], "progress": f"{self.current_light_index + 1}/{len(self.all_lights)}"},
+        )
+
+    def _get_light_config_schema(self, light: dict) -> vol.Schema:
+        """Get schema for configuring a single light."""
+        schema_dict = {}
+        
+        if light["is_on_off_only"]:
+            schema_dict[vol.Required(CONF_LIGHT_POWER, default=LIGHT_POWER_DONT_CHANGE)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": LIGHT_POWER_ON, "label": "Turn On"},
+                        {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
+                        {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
             )
+        else:
+            if light["has_brightness"]:
+                schema_dict[vol.Optional(CONF_LIGHT_BRIGHTNESS)] = vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=100)
+                )
+            
+            if light["has_color_temp"]:
+                schema_dict[vol.Optional(CONF_LIGHT_COLOR_TEMP_KELVIN)] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=MIN_COLOR_TEMP_KELVIN,
+                        max=MAX_COLOR_TEMP_KELVIN,
+                        step=100,
+                        unit_of_measurement="K",
+                    )
+                )
+            
+            if light["has_rgb"]:
+                schema_dict[vol.Optional(CONF_LIGHT_RGB_COLOR)] = selector.ColorRGBSelector()
+            
+            if light["has_effect"]:
+                effect_options = [{"value": "", "label": "Don't Change"}]
+                effect_options.extend([{"value": e, "label": e} for e in light["effect_list"]])
+                schema_dict[vol.Optional(CONF_LIGHT_EFFECT)] = selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=effect_options,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                )
+            
+            schema_dict[vol.Required(CONF_LIGHT_POWER, default=LIGHT_POWER_DONT_CHANGE)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": LIGHT_POWER_ON, "label": "Turn On"},
+                        {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
+                        {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        
+        return vol.Schema(schema_dict)
 
-            if self.current_mood:
-                self.moods.append(self.current_mood)
-
-            return await self.async_step_mood_confirm()
+    async def async_step_exclusions(self, user_input: dict | None = None) -> FlowResult:
+        """Configure exclusion helpers."""
+        if user_input is not None:
+            self.exclusion_helpers = user_input.get(CONF_EXCLUSION_HELPERS, [])
+            return await self.async_step_save()
 
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_SAVE_STATES, default=DEFAULT_SAVE_STATES): bool,
-                vol.Optional(CONF_MAX_SAVED_STATES, default=DEFAULT_MAX_SAVED_STATES): vol.All(
-                    vol.Coerce(int), vol.Range(min=1, max=10)
+                vol.Optional(CONF_EXCLUSION_HELPERS): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        multiple=True,
+                        filter=selector.EntityFilterSelectorConfig(domain="input_boolean"),
+                    )
                 ),
             }
         )
 
-        return self.async_show_form(step_id="state_settings", data_schema=data_schema)
+        return self.async_show_form(step_id="exclusions", data_schema=data_schema)
 
-    async def async_step_mood_confirm(self, user_input: dict | None = None) -> FlowResult:
-        """Confirm mood creation and ask if user wants to add more moods."""
+    async def async_step_save(self, user_input: dict | None = None) -> FlowResult:
+        """Final step - save mood."""
         if user_input is not None:
-            if user_input.get("add_another"):
-                self.current_mood = None
-                return await self.async_step_create_mood()
+            self.save_states = user_input.get(CONF_SAVE_STATES, True)
 
-            return self.async_create_entry(
-                title="MoodLights",
-                data={CONF_MOODS: self.moods},
-            )
+        mood_data = {
+            "name": f"{self.area_name} Mood",
+            "area_id": self.area_id,
+            "light_config": self.light_config,
+            "exclusion_helpers": self.exclusion_helpers,
+            "save_states": self.save_states,
+        }
 
-        mood_names = [m.get(CONF_NAME, "Unnamed") for m in self.moods]
-        preview = ", ".join(mood_names) if mood_names else "No moods created"
-
-        data_schema = vol.Schema(
-            {
-                vol.Required("add_another", default=False): bool,
-            }
+        return self.async_create_entry(
+            title=f"{self.area_name} Mood",
+            data={"moods": [mood_data]},
         )
 
-        return self.async_show_form(
-            step_id="mood_confirm",
-            data_schema=data_schema,
-            description_placeholders={"moods": preview},
-        )
-
-
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidAuth(HomeAssistantError):
-    """Error to indicate invalid auth."""
+    async def async_step_reconfigure(self, user_input: dict | None = None) -> FlowResult:
+        """Handle reconfiguration."""
+        return await self.async_step_user(user_input)

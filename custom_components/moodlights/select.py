@@ -36,8 +36,13 @@ class MoodSelectEntity(SelectEntity):
 
         self._attr_unique_id = f"{DOMAIN}_{mood_config.mood_id}"
         self._attr_name = mood_config.name
-        self._attr_options = [p.get("name", "default") for p in mood_config.presets]
+        self._attr_options = ["Activate"]
         self._attr_icon = "mdi:lightbulb-group"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, mood_config.mood_id)},
+            "name": mood_config.name,
+            "manufacturer": "MoodLights",
+        }
 
     @property
     def current_option(self) -> str | None:
@@ -52,10 +57,5 @@ class MoodSelectEntity(SelectEntity):
             return
 
         self._current_option = option
-        await self._manager.activate_mood(self._config.mood_id, option)
-        self.async_write_ha_state()
-
-    async def update_preset(self, preset_name: str) -> None:
-        """Update the current preset."""
-        self._current_option = preset_name
+        await self._manager.activate_mood(self._config.mood_id)
         self.async_write_ha_state()

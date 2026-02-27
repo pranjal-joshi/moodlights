@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 
 
 @dataclass
@@ -17,9 +17,10 @@ class LightState:
     state: str
     brightness: int | None
     color_temp: int | None
+    color_temp_kelvin: int | None
     rgb_color: tuple[int, int, int] | None
     xy_color: tuple[float, float] | None
-    supported_color_modes: list[str] | None
+    effect: str | None
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -28,7 +29,6 @@ class MoodState:
     """Represents a saved mood state."""
 
     mood_id: str
-    preset_name: str
     light_states: list[LightState] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
 
@@ -36,18 +36,12 @@ class MoodState:
 class StateManager:
     """Manages saved states for mood restoration."""
 
-    def __init__(self, hass: HomeAssistant, max_states: int = 3) -> None:
+    def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the state manager."""
         self._hass = hass
-        self._max_states = max_states
-        self._states: dict[str, list[MoodState]] = {}
+        self._previous_state: dict[str, MoodState] = {}
 
-    def save_current_state(
-        self,
-        mood_id: str,
-        preset_name: str,
-        light_entities: list[str],
-    ) -> MoodState | None:
+    def save_current_state(self, mood_id: str, light_entities: list[str]) -> MoodState | None:
         """Save current state of lights before applying a mood."""
         light_states: list[LightState] = []
 
@@ -61,9 +55,10 @@ class StateManager:
                 state=state.state,
                 brightness=state.attributes.get("brightness"),
                 color_temp=state.attributes.get("color_temp"),
+                color_temp_kelvin=state.attributes.get("color_temp_kelvin"),
                 rgb_color=state.attributes.get("rgb_color"),
                 xy_color=state.attributes.get("xy_color"),
-                supported_color_modes=state.attributes.get("supported_color_modes"),
+                effect=state.attributes.get("effect"),
             )
             light_states.append(light_state)
 
@@ -72,51 +67,23 @@ class StateManager:
 
         mood_state = MoodState(
             mood_id=mood_id,
-            preset_name=preset_name,
             light_states=light_states,
         )
 
-        if mood_id not in self._states:
-            self._states[mood_id] = []
-
-        self._states[mood_id].insert(0, mood_state)
-
-        if len(self._states[mood_id]) > self._max_states:
-            self._states[mood_id] = self._states[mood_id][: self._max_states]
-
+        self._previous_state[mood_id] = mood_state
         return mood_state
-
-    def get_previous_state(self, mood_id: str) -> MoodState | None:
-        """Get the previous state for a mood."""
-        if mood_id not in self._states or len(self._states[mood_id]) < 2:
-            return None
-        return self._states[mood_id][1]
-
-    def get_latest_state(self, mood_id: str) -> MoodState | None:
-        """Get the latest saved state for a mood."""
-        if mood_id not in self._states or not self._states[mood_id]:
-            return None
-        return self._states[mood_id][0]
 
     def can_restore(self, mood_id: str) -> bool:
         """Check if a state can be restored."""
-        return self.get_previous_state(mood_id) is not None
+        return mood_id in self._previous_state and self._previous_state[mood_id] is not None
 
     async def restore_previous(self, mood_id: str) -> bool:
         """Restore the previous state for a mood."""
-        previous_state = self.get_previous_state(mood_id)
+        previous_state = self._previous_state.get(mood_id)
         if not previous_state:
             return False
 
         return await self._restore_state(previous_state)
-
-    async def restore_latest(self, mood_id: str) -> bool:
-        """Restore the latest saved state for a mood."""
-        latest_state = self.get_latest_state(mood_id)
-        if not latest_state:
-            return False
-
-        return await self._restore_state(latest_state)
 
     async def _restore_state(self, mood_state: MoodState) -> bool:
         """Restore a specific mood state."""
@@ -133,10 +100,14 @@ class StateManager:
                     service_data["brightness"] = light_state.brightness
                 if light_state.color_temp is not None:
                     service_data["color_temp"] = light_state.color_temp
+                if light_state.color_temp_kelvin is not None:
+                    service_data["color_temp_kelvin"] = light_state.color_temp_kelvin
                 if light_state.rgb_color is not None:
                     service_data["rgb_color"] = light_state.rgb_color
                 if light_state.xy_color is not None:
                     service_data["xy_color"] = light_state.xy_color
+                if light_state.effect is not None:
+                    service_data["effect"] = light_state.effect
 
             tasks.append(self._hass.services.async_call("light", service, service_data))
 
@@ -147,14 +118,10 @@ class StateManager:
         return False
 
     def clear_states(self, mood_id: str) -> None:
-        """Clear all saved states for a mood."""
-        if mood_id in self._states:
-            self._states[mood_id] = []
+        """Clear saved state for a mood."""
+        if mood_id in self._previous_state:
+            del self._previous_state[mood_id]
 
     def clear_all_states(self) -> None:
         """Clear all saved states."""
-        self._states = {}
-
-    def get_state_count(self, mood_id: str) -> int:
-        """Get the number of saved states for a mood."""
-        return len(self._states.get(mood_id, []))
+        self._previous_state = {}
