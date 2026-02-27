@@ -115,10 +115,12 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if user_input.get(colortemp_key):
                     config[CONF_LIGHT_COLOR_TEMP_KELVIN] = user_input[colortemp_key]
                 
-                # RGB Color
+                # RGB Color - store as tuple
                 rgb_key = f"{safe_name}_rgb"
-                if user_input.get(rgb_key):
-                    config[CONF_LIGHT_RGB_COLOR] = list(user_input[rgb_key])
+                rgb_value = user_input.get(rgb_key)
+                if rgb_value is not None:
+                    # Ensure it's stored as a tuple of ints
+                    config[CONF_LIGHT_RGB_COLOR] = tuple(rgb_value)
                 
                 light_configs[entity_id] = config
             
@@ -146,7 +148,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             has_brightness = "brightness" in supported_modes or "br" in supported_modes
             has_color_temp = "color_temp" in supported_modes
-            has_rgb = "rgb" in supported_modes or "hs" in supported_modes or "xy" in supported_modes
+            # Check for RGB, RGBW, RGBWW, HS, or XY color modes
+            has_rgb = any(
+                mode in supported_modes
+                for mode in ("rgb", "rgbw", "rgbww", "hs", "xy")
+            )
             
             # Get min/max kelvin for this specific light
             min_kelvin = MIN_COLOR_TEMP_KELVIN
@@ -184,9 +190,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                 )
             
-            # RGB Color
+            # RGB Color - add default and make optional
             if has_rgb:
-                schema[vol.Optional(f"{safe_name}_rgb")] = selector.ColorRGBSelector()
+                schema[vol.Optional(f"{safe_name}_rgb", default=[255, 255, 255])] = (
+                    selector.ColorRGBSelector()
+                )
         
         return self.async_show_form(
             step_id="configure_lights",

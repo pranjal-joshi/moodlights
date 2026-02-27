@@ -61,13 +61,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEnt
     await manager.load_moods(entry.data)
     hass.data[DOMAIN][entry.entry_id] = manager
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["button"])
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, ["button"])
+    except Exception as ex:
+        # If button platform fails, remove manager and re-raise
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        raise ex
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     # Register services only once (on first entry setup)
-    if not hass.services.has_service(DOMAIN, SERVICE_ACTIVATE_MOOD):
-        _register_services(hass)
+    try:
+        if not hass.services.has_service(DOMAIN, SERVICE_ACTIVATE_MOOD):
+            _register_services(hass)
+    except Exception:
+        # Service registration failure shouldn't abort setup
+        pass
 
     return True
 
