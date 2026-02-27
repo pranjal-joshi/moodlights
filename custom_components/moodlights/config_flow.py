@@ -175,8 +175,16 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Brightness slider (1-100%)
             if has_brightness:
-                schema[vol.Optional(f"{safe_name}_brightness")] = vol.All(
-                    vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+                schema[vol.Optional(f"{safe_name}_brightness", default=100)] = (
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=MIN_BRIGHTNESS,
+                            max=MAX_BRIGHTNESS,
+                            step=1,
+                            unit_of_measurement="%",
+                            mode=selector.NumberSelectorMode.SLIDER,
+                        )
+                    )
                 )
             
             # Colour Temperature (Kelvin)
