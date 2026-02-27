@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from homeassistant.helpers.area_registry import AreaRegistry, async_get as async_get_area_registry
+from homeassistant.helpers.entity_registry import EntityRegistry, async_get as async_get_entity_registry
 
 from .const import (
     CONF_AREA,
@@ -42,16 +43,20 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.all_lights: list[dict] = []
         self.current_light_index: int = 0
         self._area_registry: AreaRegistry | None = None
+        self._entity_registry: EntityRegistry | None = None
+        self._area_to_entities: dict[str, list[str]] = {}
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - select area."""
         if user_input is not None:
             self.area_id = user_input.get(CONF_AREA)
             self._area_registry = async_get_area_registry(self.hass)
+            self._entity_registry = async_get_entity_registry(self.hass)
             
             area = self._area_registry.async_get_area(self.area_id)
             self.area_name = area.name if area else self.area_id
             
+            self._build_area_to_entities_map()
             self.all_lights = self._get_lights_in_area(self.area_id)
             
             if not self.all_lights:
@@ -66,6 +71,19 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_configure_light()
 
         return self.async_show_form(step_id="user", data_schema=self._get_area_schema())
+
+    def _build_area_to_entities_map(self) -> None:
+        """Build a map of area_id to entity_ids using entity registry."""
+        self._area_to_entities = {}
+        
+        if not self._entity_registry:
+            return
+            
+        for entry in self._entity_registry.entities.values():
+            if entry.area_id and entry.domain == "light":
+                if entry.area_id not in self._area_to_entities:
+                    self._area_to_entities[entry.area_id] = []
+                self._area_to_entities[entry.area_id].append(entry.entity_id)
 
     def _get_area_schema(self) -> vol.Schema:
         """Get area selection schema."""
@@ -114,8 +132,10 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get all lights in an area with their capabilities."""
         lights = []
         
+        entity_ids_in_area = self._area_to_entities.get(area_id, [])
+        
         for state in self.hass.states.async_all("light"):
-            if state.attributes.get("area_id") == area_id:
+            if state.entity_id in entity_ids_in_area:
                 supported_modes = state.attributes.get("supported_color_modes", [])
                 effect_list = state.attributes.get("effect_list", []) or []
                 
