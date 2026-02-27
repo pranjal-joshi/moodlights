@@ -21,7 +21,7 @@ async def async_setup_entry(
     entry_id = config_entry.entry_id
 
     entities: list[ButtonEntity] = []
-    for mood_id, mood_config in manager.get_all_moods().items():
+    for _mood_id, mood_config in manager.get_all_moods().items():
         entities.append(MoodActivateButton(mood_config, manager, entry_id))
         entities.append(MoodRestoreButton(mood_config, manager, entry_id))
 

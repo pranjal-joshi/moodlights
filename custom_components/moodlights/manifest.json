@@ -5,7 +5,7 @@
   "config_flow": true,
   "documentation": "https://github.com/pranjal-joshi/moodlights",
   "issue_tracker": "https://github.com/pranjal-joshi/moodlights/issues",
-  "integration_type": "helper",
+  "integration_type": "integration",
   "iot_class": "local_push",
   "quality_scale": "excellent",
   "requirements": [],

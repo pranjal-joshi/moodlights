@@ -45,7 +45,7 @@ def _build_schemas():
     return activate, restore, save
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up the MoodLights integration."""
     hass.data.setdefault(DOMAIN, {})
     return True
@@ -63,10 +63,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEnt
 
     try:
         await hass.config_entries.async_forward_entry_setups(entry, ["button"])
-    except Exception as ex:
+    except Exception:
         # If button platform fails, remove manager and re-raise
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        raise ex
+        raise
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
@@ -173,7 +173,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: config_entries.ConfigEn
     Called by HA after async_unload_entry. This is the place for permanent
     cleanup: device registry, entity registry, and hass.data.
     """
-    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
 
     # Remove all devices owned by this config entry (entities are removed automatically)
     device_reg = dr.async_get(hass)
