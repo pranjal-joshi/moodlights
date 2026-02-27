@@ -8,22 +8,18 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    CONF_AREA,
-    CONF_EXCLUSION_HELPERS,
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_CONFIG,
-    CONF_LIGHT_EFFECT,
     CONF_LIGHT_POWER,
     CONF_LIGHT_RGB_COLOR,
-    CONF_NAME,
-    CONF_SAVE_STATES,
+    CONF_LIGHTS,
+    CONF_MOOD_NAME,
     DOMAIN,
     LIGHT_POWER_DONT_CHANGE,
     LIGHT_POWER_OFF,
     LIGHT_POWER_ON,
 )
-from .exclusion import ExclusionEngine
 from .state import StateManager
 
 
@@ -33,10 +29,8 @@ class MoodConfig:
 
     mood_id: str
     name: str
-    area_id: str
+    lights: list[str]
     light_config: dict
-    exclusion_helpers: list[str] = field(default_factory=list)
-    save_states: bool = True
 
 
 class MoodManager:
@@ -47,7 +41,6 @@ class MoodManager:
         self._hass = hass
         self._moods: dict[str, MoodConfig] = {}
         self._state_manager = StateManager(hass)
-        self._exclusion_engine = ExclusionEngine(hass)
 
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""
@@ -57,11 +50,9 @@ class MoodManager:
             mood_id = f"mood_{idx}"
             mood_config = MoodConfig(
                 mood_id=mood_id,
-                name=mood_data.get(CONF_NAME, f"Mood {idx + 1}"),
-                area_id=mood_data.get(CONF_AREA, ""),
+                name=mood_data.get(CONF_MOOD_NAME, f"Mood {idx + 1}"),
+                lights=mood_data.get(CONF_LIGHTS, []),
                 light_config=mood_data.get(CONF_LIGHT_CONFIG, {}),
-                exclusion_helpers=mood_data.get(CONF_EXCLUSION_HELPERS, []),
-                save_states=mood_data.get(CONF_SAVE_STATES, True),
             )
             self._moods[mood_id] = mood_config
 
@@ -71,16 +62,10 @@ class MoodManager:
         if not mood_config:
             return False
 
-        excluded, _ = await self.check_exclusions(mood_id)
-        if excluded:
-            return False
+        # Save current state before activating
+        self._state_manager.save_current_state(mood_id, mood_config.lights)
 
-        if mood_config.save_states:
-            self._state_manager.save_current_state(
-                mood_id,
-                list(mood_config.light_config.keys()),
-            )
-
+        # Apply the mood
         await self._apply_light_config(mood_config.light_config)
 
         return True
@@ -123,27 +108,12 @@ class MoodManager:
                 if rgb_color is not None:
                     service_data["rgb_color"] = rgb_color
                 
-                effect = config.get(CONF_LIGHT_EFFECT)
-                if effect:
-                    service_data["effect"] = effect
-                
                 tasks.append(
                     self._hass.services.async_call("light", "turn_on", service_data)
                 )
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def check_exclusions(self, mood_id: str) -> tuple[bool, str]:
-        """Check if mood should be blocked by exclusions."""
-        mood_config = self._moods.get(mood_id)
-        if not mood_config:
-            return False, ""
-
-        return await self._exclusion_engine.check_exclusions(
-            mood_config.exclusion_helpers,
-            [],
-        )
 
     async def async_unload(self) -> None:
         """Unload the manager."""

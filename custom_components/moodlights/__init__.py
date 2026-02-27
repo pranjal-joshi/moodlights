@@ -16,44 +16,6 @@ PLATFORM_SCHEMA = vol.Schema({vol.Optional(DOMAIN): vol.Schema({})})
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the MoodLights integration."""
     hass.data[DOMAIN] = {}
-
-    async def handle_activate(call, manager, entry_id):
-        """Handle activate service."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            return
-        
-        for mood_id, mood_config in manager.get_all_moods().items():
-            expected_entity_id = f"select.{DOMAIN}_{mood_id}"
-            if entity_id == expected_entity_id:
-                await manager.activate_mood(mood_id)
-                return
-
-    async def handle_restore(call, manager, entry_id):
-        """Handle restore service."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            return
-        
-        for mood_id, mood_config in manager.get_all_moods().items():
-            expected_entity_id = f"select.{DOMAIN}_{mood_id}"
-            if entity_id == expected_entity_id:
-                await manager.restore_previous(mood_id)
-                return
-
-    async def async_activate_service(call):
-        """Service to activate a mood."""
-        for entry_id, manager in hass.data.get(DOMAIN, {}).items():
-            await handle_activate(call, manager, entry_id)
-
-    async def async_restore_service(call):
-        """Service to restore previous state."""
-        for entry_id, manager in hass.data.get(DOMAIN, {}).items():
-            await handle_restore(call, manager, entry_id)
-
-    hass.services.async_register(DOMAIN, "activate", async_activate_service)
-    hass.services.async_register(DOMAIN, "restore", async_restore_service)
-
     return True
 
 
@@ -65,7 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEnt
     await manager.load_moods(entry.data)
     hass.data[DOMAIN][entry.entry_id] = manager
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["select"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["button"])
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
@@ -78,7 +40,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEn
     if manager:
         await manager.async_unload()
 
-    return await hass.config_entries.async_unload_platforms(entry, ["select"])
+    return await hass.config_entries.async_unload_platforms(entry, ["button"])
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:

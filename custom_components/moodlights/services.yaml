@@ -1,19 +1,4 @@
-activate:
-  name: Activate Mood
-  description: Activate a mood to change all lights in the area
-  fields:
-    entity_id:
-      name: Mood Entity
-      description: The mood entity to activate (e.g., select.moodlights_mood_0)
-      required: true
-      example: "select.moodlights_mood_0"
-
-restore:
-  name: Restore Previous State
-  description: Restore lights to the state before the last mood activation
-  fields:
-    entity_id:
-      name: Mood Entity
-      description: The mood entity to restore
-      required: true
-      example: "select.moodlights_mood_0"
+# MoodLights uses button entities for activation.
+# No services needed - use the buttons in the UI or:
+# - button.moodlights_mood_0_activate
+# - button.moodlights_mood_0_restore
