@@ -5,9 +5,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
-from homeassistant.helpers.entity_registry import async_get, EntityRegistry
+from homeassistant.helpers.area_registry import AreaRegistry, async_get as async_get_area_registry
 
 from .const import (
     CONF_AREA,
@@ -19,14 +18,12 @@ from .const import (
     CONF_LIGHT_POWER,
     CONF_LIGHT_RGB_COLOR,
     CONF_SAVE_STATES,
-    DEFAULT_COLOR_TEMP_KELVIN,
     DOMAIN,
     LIGHT_POWER_DONT_CHANGE,
     LIGHT_POWER_OFF,
     LIGHT_POWER_ON,
     MAX_COLOR_TEMP_KELVIN,
     MIN_COLOR_TEMP_KELVIN,
-    POWER_OPTIONS,
 )
 
 
@@ -44,19 +41,18 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.save_states: bool = True
         self.all_lights: list[dict] = []
         self.current_light_index: int = 0
-        self._entity_registry: EntityRegistry | None = None
+        self._area_registry: AreaRegistry | None = None
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - select area."""
         if user_input is not None:
             self.area_id = user_input.get(CONF_AREA)
-            registry = async_get(self.hass)
-            self._entity_registry = registry
+            self._area_registry = async_get_area_registry(self.hass)
             
-            area = self.hass.states.get(f"area.{self.area_id}")
-            self.area_name = area.attributes.get("name", self.area_id) if area else self.area_id
+            area = self._area_registry.async_get_area(self.area_id)
+            self.area_name = area.name if area else self.area_id
             
-            self.all_lights = await self._get_lights_in_area(self.area_id)
+            self.all_lights = self._get_lights_in_area(self.area_id)
             
             if not self.all_lights:
                 return self.async_show_form(
@@ -75,6 +71,18 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get area selection schema."""
         areas = self._get_available_areas()
         
+        if not areas:
+            return vol.Schema(
+                {
+                    vol.Required(CONF_AREA): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[{"value": "", "label": "No areas found - create areas in HA first"}],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            )
+        
         return vol.Schema(
             {
                 vol.Required(CONF_AREA): selector.SelectSelector(
@@ -90,44 +98,42 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     def _get_available_areas(self) -> list[dict]:
-        """Get list of available areas with lights."""
+        """Get list of all areas from HA."""
+        area_registry = async_get_area_registry(self.hass)
         areas = []
-        for state in self.hass.states.async_all("area"):
-            area_id = state.entity_id
-            lights = self.hass.states.async_all("light")
-            area_lights = [
-                l for l in lights 
-                if l.attributes.get("area_id") == area_id.replace("area.", "")
-            ]
-            if area_lights:
-                areas.append({
-                    "id": area_id.replace("area.", ""),
-                    "name": area.attributes.get("name", area_id)
-                })
-        return areas
+        
+        for area in area_registry.areas.values():
+            areas.append({
+                "id": area.id,
+                "name": area.name
+            })
+        
+        return sorted(areas, key=lambda x: x["name"])
 
-    async def _get_lights_in_area(self, area_id: str) -> list[dict]:
+    def _get_lights_in_area(self, area_id: str) -> list[dict]:
         """Get all lights in an area with their capabilities."""
         lights = []
+        
         for state in self.hass.states.async_all("light"):
             if state.attributes.get("area_id") == area_id:
                 supported_modes = state.attributes.get("supported_color_modes", [])
-                effect_list = state.attributes.get("effect_list", [])
+                effect_list = state.attributes.get("effect_list", []) or []
                 
                 light_info = {
                     "entity_id": state.entity_id,
                     "name": state.name,
+                    "friendly_name": state.attributes.get("friendly_name", state.entity_id),
                     "supported_color_modes": supported_modes,
                     "effect_list": effect_list,
                     "has_brightness": "brightness" in supported_modes or "br" in supported_modes,
                     "has_color_temp": "color_temp" in supported_modes,
                     "has_rgb": "rgb" in supported_modes or "hs" in supported_modes or "xy" in supported_modes,
                     "has_effect": bool(effect_list),
-                    "is_on_off_only": supported_modes == ["on_off"] or supported_modes == ["onoff"],
+                    "is_on_off_only": supported_modes == ["on_off"] or supported_modes == ["onoff"] or not supported_modes,
                 }
                 lights.append(light_info)
         
-        return lights
+        return sorted(lights, key=lambda x: x["name"])
 
     async def async_step_configure_light(self, user_input: dict | None = None) -> FlowResult:
         """Configure individual light settings."""
@@ -165,7 +171,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="configure_light",
             data_schema=self._get_light_config_schema(light),
-            description_placeholders={"light_name": light["name"], "progress": f"{self.current_light_index + 1}/{len(self.all_lights)}"},
+            description_placeholders={"light_name": light.get("friendly_name", light["name"]), "progress": f"{self.current_light_index + 1}/{len(self.all_lights)}"},
         )
 
     def _get_light_config_schema(self, light: dict) -> vol.Schema:
@@ -242,7 +248,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="exclusions", data_schema=data_schema)
+        return self.async_show_form(
+            step_id="exclusions", 
+            data_schema=data_schema,
+            description_placeholders={"helper_desc": "When these input_booleans are ON, mood activation will be blocked"},
+        )
 
     async def async_step_save(self, user_input: dict | None = None) -> FlowResult:
         """Final step - save mood."""

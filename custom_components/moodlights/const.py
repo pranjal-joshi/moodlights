@@ -7,10 +7,12 @@ VERSION = "0.1.0"
 ATTRIBUTION = "MoodLights - Easy mood-based light management"
 
 CONF_AREA = "area"
+CONF_AREA_ID = "area_id"
 CONF_LIGHT_CONFIG = "light_config"
 CONF_LIGHT_ENTITIES = "light_entities"
 CONF_EXCLUSION_HELPERS = "exclusion_helpers"
 CONF_SAVE_STATES = "save_states"
+CONF_NAME = "name"
 
 CONF_LIGHT_BRIGHTNESS = "brightness"
 CONF_LIGHT_COLOR_TEMP = "color_temp"

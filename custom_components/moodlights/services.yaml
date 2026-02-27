@@ -1,49 +1,29 @@
-activate_mood:
+activate:
   name: Activate Mood
-  description: Activate a mood with a specific preset
+  description: Activate a mood to change all lights in the area
   fields:
-    mood_id:
-      name: Mood ID
-      description: The unique identifier of the mood
+    entity_id:
+      name: Mood Entity
+      description: The mood entity to activate
       required: true
-      example: "mood_0"
-    preset:
-      name: Preset
-      description: Name of the preset to activate (uses first preset if not specified)
-      required: false
-      example: "Movie Night"
+      example: "select.living_room_mood"
 
-restore_previous:
-  name: Restore Previous
-  description: Restore the lights to the previous saved state
+restore:
+  name: Restore Previous State
+  description: Restore lights to the state before the last mood activation
   fields:
-    mood_id:
-      name: Mood ID
-      description: The unique identifier of the mood
+    entity_id:
+      name: Mood Entity
+      description: The mood entity to restore
       required: true
-      example: "mood_0"
+      example: "select.living_room_mood"
 
-save_state:
-  name: Save State
-  description: Manually save the current state of lights
+get_status:
+  name: Get Mood Status
+  description: Get the current status of a mood
   fields:
-    mood_id:
-      name: Mood ID
-      description: The unique identifier of the mood
+    entity_id:
+      name: Mood Entity
+      description: The mood entity to check
       required: true
-      example: "mood_0"
-    preset_name:
-      name: Preset Name
-      description: Optional name for the saved state
-      required: false
-      example: "Before Movie"
-
-check_exclusions:
-  name: Check Exclusions
-  description: Check if mood activation is blocked by exclusion rules
-  fields:
-    mood_id:
-      name: Mood ID
-      description: The unique identifier of the mood
-      required: true
-      example: "mood_0"
+      example: "select.living_room_mood"
