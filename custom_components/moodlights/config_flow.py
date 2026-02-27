@@ -52,7 +52,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
-        self.abort_if_unique_id_configured()
+        self._abort_if_unique_id_configured()
         return await self.async_step_select_lights()
 
     async def async_step_select_lights(self, user_input: dict | None = None) -> FlowResult:
