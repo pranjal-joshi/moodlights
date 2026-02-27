@@ -1,0 +1,13 @@
+{
+  "domain": "moodlights",
+  "name": "MoodLights",
+  "codeowners": ["@pranjal-joshi"],
+  "config_flow": true,
+  "documentation": "https://github.com/pranjal-joshi/moodlights",
+  "issue_tracker": "https://github.com/pranjal-joshi/moodlights/issues",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "requirements": [],
+  "dependencies": [],
+  "version": "1.0.0"
+}

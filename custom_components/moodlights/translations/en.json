@@ -1,0 +1,113 @@
+{
+  "config": {
+    "flow_title": "MoodLights",
+    "step": {
+      "user": {
+        "title": "Welcome to MoodLights",
+        "description": "Easy mood-based light management for Home Assistant"
+      },
+      "create_mood": {
+        "title": "Create a Mood",
+        "description": "Give your mood a name",
+        "data": {
+          "name": "Mood Name"
+        }
+      },
+      "select_lights": {
+        "title": "Select Lights",
+        "description": "Choose lights for this mood",
+        "data": {
+          "light_entities": "Light Entities",
+          "light_pattern": "Entity Pattern (regex)"
+        }
+      },
+      "add_preset": {
+        "title": "Add Preset",
+        "description": "Define a preset for this mood",
+        "data": {
+          "preset_name": "Preset Name",
+          "brightness": "Brightness (%)",
+          "color_temp": "Color Temperature (mired)",
+          "rgb_color": "RGB Color",
+          "transition": "Transition (seconds)"
+        }
+      },
+      "preset_confirm": {
+        "title": "Add Another Preset?",
+        "data": {
+          "add_another": "Add another preset"
+        }
+      },
+      "exclusion_rules": {
+        "title": "Exclusion Rules",
+        "description": "Configure conditions that block mood changes",
+        "data": {
+          "exclusion_helpers": "Helper Entities (input_boolean, switch)",
+          "exclusion_states": "State Entities (media_player, person)"
+        }
+      },
+      "confirmation": {
+        "title": "Confirmation Mode",
+        "description": "Require confirmation before mood changes",
+        "data": {
+          "confirmation_mode": "Confirmation Mode"
+        }
+      },
+      "state_settings": {
+        "title": "State Settings",
+        "description": "Configure state save/restore",
+        "data": {
+          "save_states": "Auto-save states before mood change",
+          "max_saved_states": "Maximum saved states"
+        }
+      },
+      "mood_confirm": {
+        "title": "Add Another Mood?",
+        "description": "Created moods: {moods}",
+        "data": {
+          "add_another": "Add another mood"
+        }
+      }
+    }
+  },
+  "services": {
+    "activate_mood": {
+      "name": "Activate Mood",
+      "description": "Activate a mood with a specific preset",
+      "fields": {
+        "mood_id": {
+          "name": "Mood ID",
+          "description": "The unique identifier of the mood"
+        },
+        "preset": {
+          "name": "Preset",
+          "description": "Name of the preset to activate"
+        }
+      }
+    },
+    "restore_previous": {
+      "name": "Restore Previous",
+      "description": "Restore the lights to the previous saved state",
+      "fields": {
+        "mood_id": {
+          "name": "Mood ID",
+          "description": "The unique identifier of the mood"
+        }
+      }
+    },
+    "save_state": {
+      "name": "Save State",
+      "description": "Manually save the current state of lights",
+      "fields": {
+        "mood_id": {
+          "name": "Mood ID",
+          "description": "The unique identifier of the mood"
+        },
+        "preset_name": {
+          "name": "Preset Name",
+          "description": "Optional name for the saved state"
+        }
+      }
+    }
+  }
+}
