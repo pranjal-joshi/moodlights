@@ -3,22 +3,22 @@
     "flow_title": "MoodLights",
     "step": {
       "user": {
-        "title": "Welcome to MoodLights",
-        "description": "Easy mood-based light management for Home Assistant",
+        "title": "Create a Mood",
+        "description": "Give your mood a memorable name that describes when you'll use it (e.g., 'Movie Night', 'Morning Coffee', 'Party').",
         "data": {
           "name": "Mood Name"
         }
       },
       "select_lights": {
-        "title": "Select Lights",
-        "description": "Choose the lights you want to control with this mood",
+        "title": "Choose Lights",
+        "description": "Select which lights this mood should control. You can choose multiple lights that will change together.",
         "data": {
           "lights": "Light Entities"
         }
       },
       "configure_lights": {
         "title": "Configure Lights",
-        "description": "Set brightness, colour temperature and colour for each light"
+        "description": "For each light, enable and configure the settings you want to apply when this mood is activated."
       }
     },
     "error": {
