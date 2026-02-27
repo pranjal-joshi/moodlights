@@ -6,9 +6,8 @@
   "documentation": "https://github.com/pranjal-joshi/moodlights",
   "issue_tracker": "https://github.com/pranjal-joshi/moodlights/issues",
   "integration_type": "integration",
-  "iot_class": "local_polling",
+  "iot_class": "local_push",
   "requirements": [],
   "dependencies": [],
-  "version": "0.1.0",
-  "icon": "icon.png"
+  "version": "0.1.0"
 }

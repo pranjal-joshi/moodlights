@@ -148,17 +148,17 @@ def _register_services(hass: HomeAssistant) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
     """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["button"])
+
     manager = hass.data[DOMAIN].pop(entry.entry_id, None)
     if manager:
         await manager.async_unload()
 
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["button"])
-
     # Remove services when no entries remain
     if not hass.data[DOMAIN]:
-        hass.services.async_remove(DOMAIN, SERVICE_ACTIVATE_MOOD)
-        hass.services.async_remove(DOMAIN, SERVICE_RESTORE_PREVIOUS)
-        hass.services.async_remove(DOMAIN, SERVICE_SAVE_STATE)
+        for service_name in (SERVICE_ACTIVATE_MOOD, SERVICE_RESTORE_PREVIOUS, SERVICE_SAVE_STATE):
+            if hass.services.has_service(DOMAIN, service_name):
+                hass.services.async_remove(DOMAIN, service_name)
 
     return unload_ok
 

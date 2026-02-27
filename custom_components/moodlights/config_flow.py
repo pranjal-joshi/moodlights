@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
@@ -104,7 +103,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if user_input.get(brightness_enabled_key):
                     brightness_value = user_input.get(brightness_key)
                     if brightness_value is not None:
-                        config[CONF_LIGHT_BRIGHTNESS] = brightness_value
+                        config[CONF_LIGHT_BRIGHTNESS] = int(brightness_value)
                 
                 # Colour Temperature (toggle + value)
                 colortemp_enabled_key = f"{safe_name}_colortemp_enabled"
@@ -112,7 +111,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if user_input.get(colortemp_enabled_key):
                     colortemp_value = user_input.get(colortemp_key)
                     if colortemp_value is not None:
-                        config[CONF_LIGHT_COLOR_TEMP_KELVIN] = colortemp_value
+                        config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
                 
                 # RGB Color (toggle + value)
                 rgb_enabled_key = f"{safe_name}_rgb_enabled"
@@ -120,7 +119,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if user_input.get(rgb_enabled_key):
                     rgb_value = user_input.get(rgb_key)
                     if rgb_value is not None:
-                        config[CONF_LIGHT_RGB_COLOR] = tuple(rgb_value)
+                        config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
                 
                 light_configs[entity_id] = config
             
@@ -147,16 +146,16 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
             
             # Detect capabilities
-            has_brightness = "brightness" in supported_modes or "br" in supported_modes
+            # Any light with color modes (except "onoff") supports brightness
+            has_brightness = bool(supported_modes) and not (
+                len(supported_modes) == 1 and supported_modes[0] == "onoff"
+            )
             has_color_temp = "color_temp" in supported_modes
             has_rgb = any(mode in supported_modes for mode in ("rgb", "rgbw", "rgbww", "hs", "xy"))
             
             # Get min/max kelvin
             min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN) if light_state else MIN_COLOR_TEMP_KELVIN
             max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN) if light_state else MAX_COLOR_TEMP_KELVIN
-            
-            # Add section header as a non-submitting field description
-            schema[vol.Optional(f"{safe_name}_header")] = str
             
             # Power selector (always visible)
             schema[vol.Required(f"{safe_name}_power", default=LIGHT_POWER_DONT_CHANGE)] = (
