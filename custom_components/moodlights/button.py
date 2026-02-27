@@ -16,15 +16,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up MoodLights button entities."""
     manager: MoodManager = hass.data[DOMAIN][config_entry.entry_id]
+    entry_id = config_entry.entry_id
 
     entities = []
     for mood_id, mood_config in manager.get_all_moods().items():
-        # Create activate button
-        activate_entity = MoodActivateButton(mood_config, manager)
+        activate_entity = MoodActivateButton(mood_config, manager, entry_id)
         entities.append(activate_entity)
-        
-        # Create restore button
-        restore_entity = MoodRestoreButton(mood_config, manager)
+
+        restore_entity = MoodRestoreButton(mood_config, manager, entry_id)
         entities.append(restore_entity)
 
     async_add_entities(entities)
@@ -33,23 +32,28 @@ async def async_setup_entry(
 class MoodButtonBase(ButtonEntity):
     """Base class for Mood buttons."""
 
-    def __init__(self, mood_config: MoodConfig, manager: MoodManager) -> None:
+    def __init__(
+        self, mood_config: MoodConfig, manager: MoodManager, entry_id: str
+    ) -> None:
         """Initialize the mood button."""
         self._config = mood_config
         self._manager = manager
+        self._entry_id = entry_id
 
 
 class MoodActivateButton(MoodButtonBase):
     """Button to activate a mood."""
 
-    def __init__(self, mood_config: MoodConfig, manager: MoodManager) -> None:
+    def __init__(
+        self, mood_config: MoodConfig, manager: MoodManager, entry_id: str
+    ) -> None:
         """Initialize the activate button."""
-        super().__init__(mood_config, manager)
-        self._attr_unique_id = f"{DOMAIN}_{mood_config.mood_id}_activate"
+        super().__init__(mood_config, manager, entry_id)
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_{mood_config.mood_id}_activate"
         self._attr_name = "Activate"
         self._attr_icon = "mdi:play"
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, mood_config.mood_id)},
+            "identifiers": {(DOMAIN, f"{entry_id}_{mood_config.mood_id}")},
             "name": mood_config.name,
             "manufacturer": "MoodLights",
         }
@@ -62,14 +66,16 @@ class MoodActivateButton(MoodButtonBase):
 class MoodRestoreButton(MoodButtonBase):
     """Button to restore previous state."""
 
-    def __init__(self, mood_config: MoodConfig, manager: MoodManager) -> None:
+    def __init__(
+        self, mood_config: MoodConfig, manager: MoodManager, entry_id: str
+    ) -> None:
         """Initialize the restore button."""
-        super().__init__(mood_config, manager)
-        self._attr_unique_id = f"{DOMAIN}_{mood_config.mood_id}_restore"
+        super().__init__(mood_config, manager, entry_id)
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_{mood_config.mood_id}_restore"
         self._attr_name = "Revert"
         self._attr_icon = "mdi:restore"
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, mood_config.mood_id)},
+            "identifiers": {(DOMAIN, f"{entry_id}_{mood_config.mood_id}")},
             "name": mood_config.name,
             "manufacturer": "MoodLights",
         }
