@@ -147,20 +147,56 @@ def _register_services(hass: HomeAssistant) -> None:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
-    """Unload a config entry."""
+    """Unload a config entry (called on reload or before removal)."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["button"])
 
-    manager = hass.data[DOMAIN].pop(entry.entry_id, None)
+    manager = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if manager:
         await manager.async_unload()
 
     # Remove services when no entries remain
-    if not hass.data[DOMAIN]:
+    remaining = {
+        k: v for k, v in hass.data.get(DOMAIN, {}).items()
+        if k != entry.entry_id
+    }
+    if not remaining:
         for service_name in (SERVICE_ACTIVATE_MOOD, SERVICE_RESTORE_PREVIOUS, SERVICE_SAVE_STATE):
             if hass.services.has_service(DOMAIN, service_name):
                 hass.services.async_remove(DOMAIN, service_name)
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
+    """Clean up everything when the user deletes the integration.
+
+    Called by HA after async_unload_entry. This is the place for permanent
+    cleanup: device registry, entity registry, and hass.data.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    # Remove all devices owned by this config entry (entities are removed automatically)
+    device_reg = dr.async_get(hass)
+    devices_to_remove = [
+        device.id
+        for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id)
+    ]
+    for device_id in devices_to_remove:
+        device_reg.async_remove_device(device_id)
+
+    # Belt-and-suspenders: remove any orphaned entity registry entries
+    entity_reg = er.async_get(hass)
+    entities_to_remove = [
+        ent.entity_id
+        for ent in er.async_entries_for_config_entry(entity_reg, entry.entry_id)
+    ]
+    for entity_id in entities_to_remove:
+        entity_reg.async_remove(entity_id)
+
+    # Final hass.data cleanup
+    hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if DOMAIN in hass.data and not hass.data[DOMAIN]:
+        hass.data.pop(DOMAIN, None)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
