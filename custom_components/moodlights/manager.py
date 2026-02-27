@@ -32,7 +32,6 @@ from .const import (
     DOMAIN,
 )
 from .exclusion import ExclusionEngine
-from .mood import MoodEntity
 from .state import StateManager
 
 
@@ -60,7 +59,6 @@ class MoodManager:
         """Initialize the mood manager."""
         self._hass = hass
         self._moods: dict[str, MoodConfig] = {}
-        self._mood_entities: dict[str, MoodEntity] = {}
         self._state_manager = StateManager(hass)
         self._exclusion_engine = ExclusionEngine(hass)
 
@@ -84,9 +82,6 @@ class MoodManager:
                 auto_activate_days=mood_data.get(CONF_AUTO_ACTIVATE_DAYS),
             )
             self._moods[mood_id] = mood_config
-
-            entity = MoodEntity(self._hass, mood_config, self)
-            self._mood_entities[mood_id] = entity
 
     async def activate_mood(
         self, mood_id: str, preset_name: str | None = None, skip_confirmation: bool = False
@@ -116,11 +111,6 @@ class MoodManager:
 
         await self._apply_preset(mood_config, preset)
 
-        if mood_id in self._mood_entities:
-            await self._mood_entities[mood_id].update_preset(
-                preset.get(CONF_PRESET_NAME, "default")
-            )
-
         return True
 
     async def restore_previous(self, mood_id: str) -> bool:
@@ -149,10 +139,6 @@ class MoodManager:
     def can_restore(self, mood_id: str) -> bool:
         """Check if a mood can be restored."""
         return self._state_manager.can_restore(mood_id)
-
-    def get_mood_entity(self, mood_id: str) -> MoodEntity | None:
-        """Get the mood entity."""
-        return self._mood_entities.get(mood_id)
 
     def get_all_moods(self) -> dict[str, MoodConfig]:
         """Get all mood configurations."""
@@ -222,4 +208,3 @@ class MoodManager:
         """Unload the manager."""
         self._state_manager.clear_all_states()
         self._moods.clear()
-        self._mood_entities.clear()

@@ -7,7 +7,6 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .manager import MoodManager
 
 __version__ = "1.0.0"
 
@@ -22,13 +21,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
     """Set up MoodLights from a config entry."""
+    from .manager import MoodManager
+
     manager = MoodManager(hass)
+    await manager.load_moods(entry.data)
     hass.data[DOMAIN][entry.entry_id] = manager
-    
-    await hass.config_entries.async_forward_entry_setups(entry, ["select", "switch", "sensor"])
-    
+
+    await hass.config_entries.async_forward_entry_setups(entry, ["select"])
+
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-    
+
     return True
 
 
@@ -37,8 +39,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEn
     manager = hass.data[DOMAIN].pop(entry.entry_id, None)
     if manager:
         await manager.async_unload()
-    
-    return await hass.config_entries.async_unload_platforms(entry, ["select", "switch", "sensor"])
+
+    return await hass.config_entries.async_unload_platforms(entry, ["select"])
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
