@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_LIGHT_BRIGHTNESS,
@@ -45,7 +46,7 @@ class MoodManager:
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""
         moods_data = config.get("moods", [])
-        
+
         for idx, mood_data in enumerate(moods_data):
             mood_id = f"mood_{idx}"
             mood_config = MoodConfig(
@@ -56,14 +57,18 @@ class MoodManager:
             )
             self._moods[mood_id] = mood_config
 
-    async def activate_mood(self, mood_id: str) -> bool:
-        """Activate a mood."""
+    async def activate_mood(self, mood_id: str, preset_name: str = "") -> bool:
+        """Activate a mood, saving current light states first."""
         mood_config = self._moods.get(mood_id)
         if not mood_config:
             return False
 
         # Save current state before activating
-        self._state_manager.save_current_state(mood_id, mood_config.lights)
+        self._state_manager.save_current_state(
+            mood_id,
+            preset_name=preset_name or mood_config.name,
+            light_entities=mood_config.lights,
+        )
 
         # Apply the mood
         await self._apply_light_config(mood_config.light_config)
@@ -74,6 +79,19 @@ class MoodManager:
         """Restore the previous state for a mood."""
         return await self._state_manager.restore_previous(mood_id)
 
+    async def save_state(self, mood_id: str, preset_name: str = "") -> bool:
+        """Manually save the current state of lights for a mood."""
+        mood_config = self._moods.get(mood_id)
+        if not mood_config:
+            return False
+
+        result = self._state_manager.save_current_state(
+            mood_id,
+            preset_name=preset_name,
+            light_entities=mood_config.lights,
+        )
+        return result is not None
+
     def can_restore(self, mood_id: str) -> bool:
         """Check if a mood can be restored."""
         return self._state_manager.can_restore(mood_id)
@@ -82,36 +100,41 @@ class MoodManager:
         """Get all mood configurations."""
         return self._moods.copy()
 
+    def get_mood_by_name(self, name: str) -> MoodConfig | None:
+        """Get a mood config by its display name (case-insensitive)."""
+        name_lower = name.lower()
+        for mood in self._moods.values():
+            if mood.name.lower() == name_lower:
+                return mood
+        return None
+
     async def _apply_light_config(self, light_config: dict) -> None:
-        """Apply light configuration to all lights."""
+        """Apply light configuration to all lights in parallel."""
         tasks = []
 
         for entity_id, config in light_config.items():
             power = config.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
-            
+
             if power == LIGHT_POWER_OFF:
                 tasks.append(
                     self._hass.services.async_call("light", "turn_off", {"entity_id": entity_id})
                 )
             elif power == LIGHT_POWER_ON:
                 service_data: dict[str, Any] = {"entity_id": entity_id}
-                
-                # Brightness - always apply if set
+
                 brightness = config.get(CONF_LIGHT_BRIGHTNESS)
                 if brightness is not None:
                     service_data["brightness_pct"] = brightness
-                
-                # Priority: Colour Temperature over RGB
-                # If colour temp is set, use it (prioritize)
-                # Otherwise use RGB if set
+
+                # Colour temperature takes priority over RGB
                 color_temp_kelvin = config.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
                 rgb_color = config.get(CONF_LIGHT_RGB_COLOR)
-                
+
                 if color_temp_kelvin is not None:
                     service_data["color_temp_kelvin"] = color_temp_kelvin
                 elif rgb_color is not None:
                     service_data["rgb_color"] = rgb_color
-                
+
                 tasks.append(
                     self._hass.services.async_call("light", "turn_on", service_data)
                 )

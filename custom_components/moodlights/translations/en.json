@@ -4,108 +4,63 @@
     "step": {
       "user": {
         "title": "Welcome to MoodLights",
-        "description": "Easy mood-based light management for Home Assistant"
-      },
-      "create_mood": {
-        "title": "Create a Mood",
-        "description": "Give your mood a name",
+        "description": "Easy mood-based light management for Home Assistant",
         "data": {
           "name": "Mood Name"
         }
       },
       "select_lights": {
         "title": "Select Lights",
-        "description": "Choose lights for this mood",
+        "description": "Choose the lights you want to control with this mood",
         "data": {
-          "light_entities": "Light Entities",
-          "light_pattern": "Entity Pattern (regex)"
+          "lights": "Light Entities"
         }
       },
-      "add_preset": {
-        "title": "Add Preset",
-        "description": "Define a preset for this mood",
-        "data": {
-          "preset_name": "Preset Name",
-          "brightness": "Brightness (%)",
-          "color_temp": "Color Temperature (mired)",
-          "rgb_color": "RGB Color",
-          "transition": "Transition (seconds)"
-        }
-      },
-      "preset_confirm": {
-        "title": "Add Another Preset?",
-        "data": {
-          "add_another": "Add another preset"
-        }
-      },
-      "exclusion_rules": {
-        "title": "Exclusion Rules",
-        "description": "Configure conditions that block mood changes",
-        "data": {
-          "exclusion_helpers": "Helper Entities (input_boolean, switch)",
-          "exclusion_states": "State Entities (media_player, person)"
-        }
-      },
-      "confirmation": {
-        "title": "Confirmation Mode",
-        "description": "Require confirmation before mood changes",
-        "data": {
-          "confirmation_mode": "Confirmation Mode"
-        }
-      },
-      "state_settings": {
-        "title": "State Settings",
-        "description": "Configure state save/restore",
-        "data": {
-          "save_states": "Auto-save states before mood change",
-          "max_saved_states": "Maximum saved states"
-        }
-      },
-      "mood_confirm": {
-        "title": "Add Another Mood?",
-        "description": "Created moods: {moods}",
-        "data": {
-          "add_another": "Add another mood"
-        }
+      "configure_lights": {
+        "title": "Configure Lights",
+        "description": "Set brightness, colour temperature and colour for each light"
       }
+    },
+    "error": {
+      "no_lights_selected": "Please select at least one light."
     }
   },
   "services": {
     "activate_mood": {
       "name": "Activate Mood",
-      "description": "Activate a mood with a specific preset",
+      "description": "Activate a mood, saving current light states first.",
       "fields": {
         "mood_id": {
           "name": "Mood ID",
-          "description": "The unique identifier of the mood"
+          "description": "The unique identifier of the mood (e.g. mood_0)."
         },
-        "preset": {
-          "name": "Preset",
-          "description": "Name of the preset to activate"
+        "preset_name": {
+          "name": "Preset Name",
+          "description": "Optional label for the state snapshot saved before activation."
         }
       }
     },
     "restore_previous": {
       "name": "Restore Previous",
-      "description": "Restore the lights to the previous saved state",
+      "description": "Restore the lights for a mood to their last saved state.",
       "fields": {
         "mood_id": {
           "name": "Mood ID",
-          "description": "The unique identifier of the mood"
+          "description": "The unique identifier of the mood to restore."
         }
       }
     },
     "save_state": {
       "name": "Save State",
-      "description": "Manually save the current state of lights",
+      "description": "Manually snapshot the current state of a mood's lights.",
       "fields": {
         "mood_id": {
           "name": "Mood ID",
-          "description": "The unique identifier of the mood"
+          "description": "The unique identifier of the mood whose lights to snapshot."
         },
         "preset_name": {
           "name": "Preset Name",
-          "description": "Optional name for the saved state"
+          "description": "Optional label for this snapshot."
         }
       }
     }

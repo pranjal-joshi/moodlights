@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+
+DEFAULT_MAX_STATES = 3
 
 
 @dataclass
@@ -29,6 +33,7 @@ class MoodState:
     """Represents a saved mood state."""
 
     mood_id: str
+    preset_name: str = ""
     light_states: list[LightState] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
 
@@ -36,13 +41,23 @@ class MoodState:
 class StateManager:
     """Manages saved states for mood restoration."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, max_states: int = DEFAULT_MAX_STATES) -> None:
         """Initialize the state manager."""
         self._hass = hass
-        self._previous_state: dict[str, MoodState] = {}
+        self._max_states = max_states
+        # Per mood_id: a deque of MoodState (most recent last)
+        self._states: dict[str, deque[MoodState]] = {}
 
-    def save_current_state(self, mood_id: str, light_entities: list[str]) -> MoodState | None:
+    def save_current_state(
+        self,
+        mood_id: str,
+        preset_name: str = "",
+        light_entities: list[str] | None = None,
+    ) -> MoodState | None:
         """Save current state of lights before applying a mood."""
+        if light_entities is None:
+            light_entities = []
+
         light_states: list[LightState] = []
 
         for entity_id in light_entities:
@@ -67,19 +82,35 @@ class StateManager:
 
         mood_state = MoodState(
             mood_id=mood_id,
+            preset_name=preset_name,
             light_states=light_states,
         )
 
-        self._previous_state[mood_id] = mood_state
+        if mood_id not in self._states:
+            self._states[mood_id] = deque(maxlen=self._max_states)
+
+        self._states[mood_id].append(mood_state)
         return mood_state
 
     def can_restore(self, mood_id: str) -> bool:
         """Check if a state can be restored."""
-        return mood_id in self._previous_state and self._previous_state[mood_id] is not None
+        return mood_id in self._states and len(self._states[mood_id]) > 0
+
+    def get_state_count(self, mood_id: str) -> int:
+        """Return number of saved states for a mood."""
+        if mood_id not in self._states:
+            return 0
+        return len(self._states[mood_id])
+
+    def get_previous_state(self, mood_id: str) -> MoodState | None:
+        """Return the most recently saved state for a mood."""
+        if not self.can_restore(mood_id):
+            return None
+        return self._states[mood_id][-1]
 
     async def restore_previous(self, mood_id: str) -> bool:
-        """Restore the previous state for a mood."""
-        previous_state = self._previous_state.get(mood_id)
+        """Restore the most recently saved state for a mood."""
+        previous_state = self.get_previous_state(mood_id)
         if not previous_state:
             return False
 
@@ -118,10 +149,10 @@ class StateManager:
         return False
 
     def clear_states(self, mood_id: str) -> None:
-        """Clear saved state for a mood."""
-        if mood_id in self._previous_state:
-            del self._previous_state[mood_id]
+        """Clear saved states for a mood."""
+        if mood_id in self._states:
+            del self._states[mood_id]
 
     def clear_all_states(self) -> None:
         """Clear all saved states."""
-        self._previous_state = {}
+        self._states = {}

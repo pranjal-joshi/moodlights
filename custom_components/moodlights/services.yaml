@@ -1,4 +1,49 @@
-# MoodLights uses button entities for activation.
-# No services needed - use the buttons in the UI or:
-# - button.moodlights_mood_0_activate
-# - button.moodlights_mood_0_restore
+activate_mood:
+  name: Activate Mood
+  description: Activate a mood, saving current light states first.
+  fields:
+    mood_id:
+      name: Mood ID
+      description: The unique identifier of the mood (e.g. mood_0, mood_1).
+      required: true
+      example: mood_0
+      selector:
+        text:
+    preset_name:
+      name: Preset Name
+      description: Optional label for the state snapshot saved before activation.
+      required: false
+      example: Before Movie Night
+      selector:
+        text:
+
+restore_previous:
+  name: Restore Previous
+  description: Restore the lights for a mood to their last saved state.
+  fields:
+    mood_id:
+      name: Mood ID
+      description: The unique identifier of the mood to restore.
+      required: true
+      example: mood_0
+      selector:
+        text:
+
+save_state:
+  name: Save State
+  description: Manually snapshot the current state of a mood's lights.
+  fields:
+    mood_id:
+      name: Mood ID
+      description: The unique identifier of the mood whose lights to snapshot.
+      required: true
+      example: mood_0
+      selector:
+        text:
+    preset_name:
+      name: Preset Name
+      description: Optional label for this snapshot.
+      required: false
+      example: Daytime
+      selector:
+        text:
