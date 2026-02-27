@@ -46,7 +46,7 @@ class MoodActivateButton(MoodButtonBase):
         """Initialize the activate button."""
         super().__init__(mood_config, manager)
         self._attr_unique_id = f"{DOMAIN}_{mood_config.mood_id}_activate"
-        self._attr_name = f"{mood_config.name} - Activate"
+        self._attr_name = "Activate"
         self._attr_icon = "mdi:play"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, mood_config.mood_id)},
@@ -66,7 +66,7 @@ class MoodRestoreButton(MoodButtonBase):
         """Initialize the restore button."""
         super().__init__(mood_config, manager)
         self._attr_unique_id = f"{DOMAIN}_{mood_config.mood_id}_restore"
-        self._attr_name = f"{mood_config.name} - Restore"
+        self._attr_name = "Revert"
         self._attr_icon = "mdi:restore"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, mood_config.mood_id)},

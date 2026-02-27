@@ -36,8 +36,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.moods: list[dict] = []
         self.current_mood_name: str = ""
         self.selected_lights: list[str] = []
-        self.light_configs: dict = {}
-        self.current_light_index: int = 0
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - enter mood name."""
@@ -48,7 +46,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required(CONF_MOOD_NAME, description={"suggested_value": "Living Room Evening"}): selector.TextSelector(
+                vol.Required(CONF_MOOD_NAME, description={"suggested_value": "Movie Night"}): selector.TextSelector(
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
             }),
@@ -70,9 +68,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     description_placeholders={"step_desc": "Select the lights you want to control with this mood"}
                 )
             
-            self.light_configs = {}
-            self.current_light_index = 0
-            return await self.async_step_configure_light()
+            return await self.async_step_configure_lights()
 
         return self.async_show_form(
             step_id="select_lights",
@@ -91,115 +87,111 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         })
 
-    async def async_step_configure_light(self, user_input: dict | None = None) -> FlowResult:
-        """Configure individual light settings."""
+    async def async_step_configure_lights(self, user_input: dict | None = None) -> FlowResult:
+        """Configure all lights in a single scrollable dialog."""
         if user_input is not None:
-            entity_id = self.selected_lights[self.current_light_index]
+            # Save the configuration
+            light_configs = {}
             
-            config = {}
-            
-            # Power setting
-            power = user_input.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
-            config[CONF_LIGHT_POWER] = power
-            
-            # Only show other options if turning ON
-            if power == LIGHT_POWER_ON:
-                # Brightness
-                if user_input.get(CONF_LIGHT_BRIGHTNESS):
-                    config[CONF_LIGHT_BRIGHTNESS] = user_input[CONF_LIGHT_BRIGHTNESS]
+            for entity_id in self.selected_lights:
+                config = {}
                 
-                # Color temperature in Kelvin
-                if user_input.get(CONF_LIGHT_COLOR_TEMP_KELVIN):
-                    config[CONF_LIGHT_COLOR_TEMP_KELVIN] = user_input[CONF_LIGHT_COLOR_TEMP_KELVIN]
+                # Get the light name as prefix for fields
+                light_state = self.hass.states.get(entity_id)
+                light_name = light_state.name if light_state else entity_id
+                safe_name = light_name.replace(" ", "_").lower()
+                
+                # Power
+                power_key = f"{safe_name}_power"
+                config[CONF_LIGHT_POWER] = user_input.get(power_key, LIGHT_POWER_DONT_CHANGE)
+                
+                # Brightness
+                brightness_key = f"{safe_name}_brightness"
+                if user_input.get(brightness_key):
+                    config[CONF_LIGHT_BRIGHTNESS] = user_input[brightness_key]
+                
+                # Colour Temperature (Kelvin)
+                colortemp_key = f"{safe_name}_colortemp"
+                if user_input.get(colortemp_key):
+                    config[CONF_LIGHT_COLOR_TEMP_KELVIN] = user_input[colortemp_key]
                 
                 # RGB Color
-                if user_input.get(CONF_LIGHT_RGB_COLOR):
-                    config[CONF_LIGHT_RGB_COLOR] = list(user_input[CONF_LIGHT_RGB_COLOR])
+                rgb_key = f"{safe_name}_rgb"
+                if user_input.get(rgb_key):
+                    config[CONF_LIGHT_RGB_COLOR] = list(user_input[rgb_key])
+                
+                light_configs[entity_id] = config
             
-            self.light_configs[entity_id] = config
-            
-            self.current_light_index += 1
-            if self.current_light_index < len(self.selected_lights):
-                return await self.async_step_configure_light()
-            else:
-                return await self.async_step_save()
-
-        entity_id = self.selected_lights[self.current_light_index]
-        light_state = self.hass.states.get(entity_id)
-        light_name = light_state.name if light_state else entity_id
-        supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
-        
-        return self.async_show_form(
-            step_id="configure_light",
-            data_schema=self._get_light_config_schema(entity_id, supported_modes),
-            description_placeholders={
-                "light_name": light_name,
-                "progress": f"{self.current_light_index + 1}/{len(self.selected_lights)}",
-                "step_desc": "Configure how this light should behave when the mood is activated"
+            mood_data = {
+                CONF_MOOD_NAME: self.current_mood_name,
+                CONF_LIGHTS: self.selected_lights,
+                CONF_LIGHT_CONFIG: light_configs,
             }
-        )
+            
+            self.moods.append(mood_data)
+            
+            return self.async_create_entry(
+                title=self.current_mood_name,
+                data={"moods": self.moods},
+            )
 
-    def _get_light_config_schema(self, entity_id: str, supported_modes: list) -> vol.Schema:
-        """Get schema for configuring a single light."""
+        # Build the schema for all lights in one dialog
         schema = {}
         
-        # Power - always show
-        schema[vol.Required(CONF_LIGHT_POWER, default=LIGHT_POWER_DONT_CHANGE)] = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=[
-                    {"value": LIGHT_POWER_ON, "label": "Turn On"},
-                    {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
-                    {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
-                ],
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
-        
-        # Check capabilities
-        has_brightness = "brightness" in supported_modes or "br" in supported_modes
-        has_color_temp = "color_temp" in supported_modes
-        has_rgb = "rgb" in supported_modes or "hs" in supported_modes or "xy" in supported_modes
-        
-        # Get light state for min/max kelvin
-        light_state = self.hass.states.get(entity_id)
-        
-        # Brightness slider
-        if has_brightness:
-            schema[vol.Optional(CONF_LIGHT_BRIGHTNESS)] = vol.All(
-                vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
-            )
-        
-        # Color temperature in Kelvin
-        if has_color_temp and light_state:
-            min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN)
-            max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN)
+        for entity_id in self.selected_lights:
+            light_state = self.hass.states.get(entity_id)
+            light_name = light_state.name if light_state else entity_id
+            supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
+            safe_name = light_name.replace(" ", "_").lower()
             
-            schema[vol.Optional(CONF_LIGHT_COLOR_TEMP_KELVIN)] = selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=min_kelvin,
-                    max=max_kelvin,
-                    step=100,
-                    unit_of_measurement="K",
+            has_brightness = "brightness" in supported_modes or "br" in supported_modes
+            has_color_temp = "color_temp" in supported_modes
+            has_rgb = "rgb" in supported_modes or "hs" in supported_modes or "xy" in supported_modes
+            
+            # Get min/max kelvin for this specific light
+            min_kelvin = MIN_COLOR_TEMP_KELVIN
+            max_kelvin = MAX_COLOR_TEMP_KELVIN
+            if has_color_temp and light_state:
+                min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN)
+                max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN)
+            
+            # Power selector
+            schema[vol.Required(f"{safe_name}_power", default=LIGHT_POWER_DONT_CHANGE)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": LIGHT_POWER_ON, "label": "Turn On"},
+                        {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
+                        {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )
+            
+            # Brightness slider (1-100%)
+            if has_brightness:
+                schema[vol.Optional(f"{safe_name}_brightness")] = vol.All(
+                    vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+                )
+            
+            # Colour Temperature (Kelvin)
+            if has_color_temp:
+                schema[vol.Optional(f"{safe_name}_colortemp")] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=min_kelvin,
+                        max=max_kelvin,
+                        step=100,
+                        unit_of_measurement="K",
+                    )
+                )
+            
+            # RGB Color
+            if has_rgb:
+                schema[vol.Optional(f"{safe_name}_rgb")] = selector.ColorRGBSelector()
         
-        # RGB Color
-        if has_rgb:
-            schema[vol.Optional(CONF_LIGHT_RGB_COLOR)] = selector.ColorRGBSelector()
-        
-        return vol.Schema(schema)
-
-    async def async_step_save(self, user_input: dict | None = None) -> FlowResult:
-        """Save the mood."""
-        mood_data = {
-            CONF_MOOD_NAME: self.current_mood_name,
-            CONF_LIGHTS: self.selected_lights,
-            CONF_LIGHT_CONFIG: self.light_configs,
-        }
-        
-        self.moods.append(mood_data)
-        
-        return self.async_create_entry(
-            title="MoodLights",
-            data={"moods": self.moods},
+        return self.async_show_form(
+            step_id="configure_lights",
+            data_schema=vol.Schema(schema),
+            description_placeholders={
+                "step_desc": f"Configure settings for {len(self.selected_lights)} light(s)"
+            }
         )

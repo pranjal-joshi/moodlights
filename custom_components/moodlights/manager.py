@@ -96,16 +96,20 @@ class MoodManager:
             elif power == LIGHT_POWER_ON:
                 service_data: dict[str, Any] = {"entity_id": entity_id}
                 
+                # Brightness - always apply if set
                 brightness = config.get(CONF_LIGHT_BRIGHTNESS)
                 if brightness is not None:
                     service_data["brightness_pct"] = brightness
                 
+                # Priority: Colour Temperature over RGB
+                # If colour temp is set, use it (prioritize)
+                # Otherwise use RGB if set
                 color_temp_kelvin = config.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
+                rgb_color = config.get(CONF_LIGHT_RGB_COLOR)
+                
                 if color_temp_kelvin is not None:
                     service_data["color_temp_kelvin"] = color_temp_kelvin
-                
-                rgb_color = config.get(CONF_LIGHT_RGB_COLOR)
-                if rgb_color is not None:
+                elif rgb_color is not None:
                     service_data["rgb_color"] = rgb_color
                 
                 tasks.append(
