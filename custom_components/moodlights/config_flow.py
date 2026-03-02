@@ -259,21 +259,24 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict | None = None
     ) -> config_entries.ConfigFlowResult:
         """Add reconfigure step to allow reconfiguration of the mood."""
-        config_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-
-        if config_entry is None:
-            return self.async_abort(reason="reconfigure_failed")
-
-        if user_input is not None:
-            return self.async_update_reload_and_abort(
-                config_entry,
-                unique_id=config_entry.unique_id,
-                data={**config_entry.data, **user_input},
-                reason="reconfigure_successful",
-            )
+        config_entry = self._get_reconfigure_entry()
 
         moods = config_entry.data.get("moods", [])
         current_mood = moods[0] if moods else {}
+
+        if user_input is not None:
+            new_mood_name = user_input[CONF_MOOD_NAME]
+            # Update the mood name inside the nested moods list
+            updated_moods = []
+            for mood in moods:
+                updated_mood = {**mood, CONF_MOOD_NAME: new_mood_name}
+                updated_moods.append(updated_mood)
+
+            return self.async_update_reload_and_abort(
+                config_entry,
+                title=new_mood_name,
+                data={**config_entry.data, "moods": updated_moods},
+            )
 
         data_schema = vol.Schema({
             vol.Required(
