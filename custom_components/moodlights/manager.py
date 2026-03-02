@@ -45,8 +45,8 @@ class MoodManager:
         self._moods: dict[str, MoodConfig] = {}
 
         opts = options or {}
-        max_states = opts.get("max_states", DEFAULT_MAX_STATES)
-        self._state_manager = StateManager(hass, max_states=max_states)
+        max_states = opts.get("max_states") if opts else DEFAULT_MAX_STATES
+        self._state_manager = StateManager(hass, max_states=max_states or DEFAULT_MAX_STATES)
 
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""
