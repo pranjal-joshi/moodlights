@@ -11,13 +11,10 @@ Easy mood-based light management for Home Assistant.
 
 ## Features
 
-- **Mood Entities**: Create mood entities that appear as select entities in Home Assistant
-- **Dynamic Light Groups**: Select lights by area, entity pattern, or manually
-- **Presets**: Define multiple presets per mood (brightness, color, transition)
+- **Mood Entities**: Create mood configurations with Activate and Revert buttons
+- **Per-Light Settings**: Configure brightness, color temperature, and RGB color for each light
 - **State Save & Restore**: Automatically saves light states before mood changes, allows easy rollback
-- **Exclusion Rules**: Block mood changes when certain conditions are met (media playing, person away, etc.)
-- **Optional Confirmation**: Send notifications or require approval before mood changes
-- **Smooth Transitions**: Configure transition times for smooth light changes
+- **Callable Services**: Integrate with automations via Home Assistant services
 
 ## Installation
 
@@ -48,18 +45,15 @@ Easy mood-based light management for Home Assistant.
 
 1. Start the configuration wizard
 2. Give your mood a name (e.g., "Living Room Evening")
-3. Select lights for this mood (by area, pattern, or manually)
-4. Add presets (e.g., "Movie Night", "Bright", "Relaxed")
-5. Configure exclusion rules (optional)
-6. Set confirmation mode (optional)
-7. Configure state save settings
+3. Select lights for this mood
+4. Configure each light's settings (brightness, color temperature, RGB color)
 
 ## Usage
 
-### Via UI
+### Via Buttons
 
-- Select a mood preset from the dropdown to activate
-- The entity shows current preset and whether restore is available
+- Click the **Activate** button to apply a mood
+- Click the **Revert** button to restore the previous light states
 
 ### Via Services
 
@@ -68,7 +62,6 @@ Easy mood-based light management for Home Assistant.
 service: moodlights.activate_mood
 data:
   mood_id: "mood_0"
-  preset: "Movie Night"
 
 # Restore previous state
 service: moodlights.restore_previous
@@ -82,21 +75,11 @@ data:
   preset_name: "Before Movie"
 ```
 
-## Exclusion Rules
-
-MoodLights can automatically block mood changes based on:
-
-- **Helper Entities**: `input_boolean`, `switch`, `binary_sensor` (when on)
-- **Entity States**:
-  - `media_player` (when playing/paused)
-  - `person` (when home)
-  - `binary_sensor` (when on)
-
 ## State Management
 
 MoodLights automatically saves light states before applying a new mood:
 
-- Saves up to 3 previous states (configurable)
+- Saves up to 3 previous states per mood
 - States are stored in memory and cleared on HA restart
 - Use `restore_previous` service to revert to the previous state
 
