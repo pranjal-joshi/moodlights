@@ -61,19 +61,16 @@ Easy mood-based light management for Home Assistant.
 # Activate a mood
 service: moodlights.activate_mood
 data:
-  config_entry_id: "<your MoodLights entry ID>"
   mood_name: "Movie Night"
 
 # Restore previous state
 service: moodlights.restore_previous
 data:
-  config_entry_id: "<your MoodLights entry ID>"
   mood_name: "Movie Night"
 
 # Manually save current state
 service: moodlights.save_state
 data:
-  config_entry_id: "<your MoodLights entry ID>"
   mood_name: "Movie Night"
   preset_name: "Before Movie"
 ```

@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 PLATFORMS = [Platform.BUTTON]
 
-ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MOOD_NAME = "mood_name"
 ATTR_PRESET_NAME = "preset_name"
 
@@ -32,20 +31,17 @@ def _build_schemas() -> tuple:
 
     activate = vol.Schema(
         {
-            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
             vol.Required(ATTR_MOOD_NAME): cv.string,
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
         }
     )
     restore = vol.Schema(
         {
-            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
             vol.Required(ATTR_MOOD_NAME): cv.string,
         }
     )
     save = vol.Schema(
         {
-            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
             vol.Required(ATTR_MOOD_NAME): cv.string,
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
         }
@@ -53,24 +49,26 @@ def _build_schemas() -> tuple:
     return activate, restore, save
 
 
-def _resolve_mood(hass: HomeAssistant, entry_id: str, mood_name: str):
-    """Resolve a mood by entry_id and mood name. Raises ServiceValidationError on failure."""
-    entry = hass.config_entries.async_get_entry(entry_id)
-    if not entry or entry.domain != DOMAIN or not entry.state:
-        raise ServiceValidationError(
-            f"MoodLights config entry '{entry_id}' not found or not loaded."
-        )
+def _resolve_mood(hass: HomeAssistant, mood_name: str):
+    """Resolve a mood by name across all MoodLights entries. Raises ServiceValidationError on failure."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if not entry.state:
+            continue
+        manager: MoodManager = entry.runtime_data
+        mood = manager.get_mood_by_name(mood_name)
+        if mood is not None:
+            return manager, mood
 
-    manager: MoodManager = entry.runtime_data
-    mood = manager.get_mood_by_name(mood_name)
-    if mood is None:
-        available = ", ".join(
-            f"'{m.name}'" for m in manager.get_all_moods().values()
-        )
-        raise ServiceValidationError(
-            f"Mood '{mood_name}' not found. Available moods: {available or 'none'}."
-        )
-    return manager, mood
+    all_moods: list[str] = []
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.state:
+            manager: MoodManager = entry.runtime_data
+            all_moods.extend(m.name for m in manager.get_all_moods().values())
+
+    available = ", ".join(f"'{m}'" for m in all_moods)
+    raise ServiceValidationError(
+        f"Mood '{mood_name}' not found. Available moods: {available or 'none'}."
+    )
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -81,17 +79,13 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
 
     async def handle_activate_mood(call: ServiceCall) -> None:
         """Handle the activate_mood service call."""
-        manager, mood = _resolve_mood(
-            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
-        )
+        manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
         await manager.activate_mood(mood.mood_id, preset_name=preset_name)
 
     async def handle_restore_previous(call: ServiceCall) -> None:
         """Handle the restore_previous service call."""
-        manager, mood = _resolve_mood(
-            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
-        )
+        manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
         success = await manager.restore_previous(mood.mood_id)
         if not success:
             raise ServiceValidationError(
@@ -100,9 +94,7 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
 
     async def handle_save_state(call: ServiceCall) -> None:
         """Handle the save_state service call."""
-        manager, mood = _resolve_mood(
-            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
-        )
+        manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
         await manager.save_state(mood.mood_id, preset_name=preset_name)
 

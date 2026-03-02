@@ -2,13 +2,6 @@ activate_mood:
   name: Activate Mood
   description: Activate a mood, saving current light states first.
   fields:
-    config_entry_id:
-      name: MoodLights Instance
-      description: Select the MoodLights integration instance to use.
-      required: true
-      selector:
-        config_entry:
-          integration: moodlights
     mood_name:
       name: Mood Name
       description: The name of the mood to activate (exactly as entered during setup).
@@ -28,13 +21,6 @@ restore_previous:
   name: Restore Previous
   description: Restore the lights for a mood to their last saved state.
   fields:
-    config_entry_id:
-      name: MoodLights Instance
-      description: Select the MoodLights integration instance to use.
-      required: true
-      selector:
-        config_entry:
-          integration: moodlights
     mood_name:
       name: Mood Name
       description: The name of the mood to restore (exactly as entered during setup).
@@ -47,13 +33,6 @@ save_state:
   name: Save State
   description: Manually snapshot the current state of a mood's lights.
   fields:
-    config_entry_id:
-      name: MoodLights Instance
-      description: Select the MoodLights integration instance to use.
-      required: true
-      selector:
-        config_entry:
-          integration: moodlights
     mood_name:
       name: Mood Name
       description: The name of the mood whose lights to snapshot (exactly as entered during setup).
