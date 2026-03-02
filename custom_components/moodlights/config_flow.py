@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import SOURCE_RECONFIGURE
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
@@ -94,14 +95,19 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="select_lights",
-            data_schema=self._get_lights_schema(),
+            data_schema=self._get_lights_schema(default_lights=self.selected_lights),
             last_step=False,
         )
 
-    def _get_lights_schema(self) -> vol.Schema:
+    def _get_lights_schema(self, default_lights: list[str] | None = None) -> vol.Schema:
         """Get schema for selecting lights."""
+        lights_key = (
+            vol.Required(CONF_LIGHTS, default=default_lights)
+            if default_lights
+            else vol.Required(CONF_LIGHTS)
+        )
         return vol.Schema({
-            vol.Required(CONF_LIGHTS): selector.EntitySelector(
+            lights_key: selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     multiple=True,
                     filter=selector.EntityFilterSelectorConfig(domain="light"),
@@ -159,7 +165,17 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             self.moods.append(mood_data)
 
-            # Set unique_id in final step, after all validation is done
+            # In reconfigure: update + reload the existing entry
+            if self.source == SOURCE_RECONFIGURE:
+                config_entry = self._get_reconfigure_entry()
+                return self.async_update_reload_and_abort(
+                    config_entry,
+                    title=self.current_mood_name,
+                    unique_id=self._get_safe_name(self.current_mood_name),
+                    data={"moods": self.moods},
+                )
+
+            # Normal setup: set unique_id and create a new entry
             await self.async_set_unique_id(self._get_safe_name(self.current_mood_name))
             self._abort_if_unique_id_configured()
 
@@ -258,41 +274,30 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Add reconfigure step to allow reconfiguration of the mood."""
+        """Seed existing data and start the full reconfigure flow from step 1."""
         config_entry = self._get_reconfigure_entry()
-
         moods = config_entry.data.get("moods", [])
         current_mood = moods[0] if moods else {}
 
+        # Pre-fill instance state from current entry
+        self.current_mood_name = current_mood.get(CONF_MOOD_NAME, "")
+        self.selected_lights = current_mood.get(CONF_LIGHTS, [])
+        self.moods = []
+
+        # Show mood name form pre-filled with existing name
         if user_input is not None:
-            new_mood_name = user_input[CONF_MOOD_NAME]
-            # Update the mood name inside the nested moods list
-            updated_moods = []
-            for mood in moods:
-                updated_mood = {**mood, CONF_MOOD_NAME: new_mood_name}
-                updated_moods.append(updated_mood)
-
-            return self.async_update_reload_and_abort(
-                config_entry,
-                title=new_mood_name,
-                data={**config_entry.data, "moods": updated_moods},
-            )
-
-        data_schema = vol.Schema({
-            vol.Required(
-                CONF_MOOD_NAME,
-                default=current_mood.get(CONF_MOOD_NAME, ""),
-            ): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-            ),
-        })
+            self.current_mood_name = user_input.get(CONF_MOOD_NAME, self.current_mood_name)
+            return await self.async_step_select_lights()
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=data_schema,
-            last_step=True,
+            data_schema=vol.Schema({
+                vol.Required(CONF_MOOD_NAME, default=self.current_mood_name): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                ),
+            }),
+            last_step=False,
         )
-
 
 class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
     """Handles the options flow for MoodLights."""
