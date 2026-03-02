@@ -70,9 +70,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
             }),
-            data_description={
-                "hint": "Enter a unique name for your mood. This will help you identify it later."
-            },
             last_step=False,
         )
 
@@ -90,9 +87,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="select_lights",
                     data_schema=self._get_lights_schema(),
                     errors={"base": "no_lights_selected"},
-                    data_description={
-                        "hint": "Select at least one light for this mood."
-                    },
                     last_step=False,
                 )
 
@@ -101,9 +95,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="select_lights",
             data_schema=self._get_lights_schema(),
-            data_description={
-                "hint": "Select the lights you want to control with this mood."
-            },
             last_step=False,
         )
 
