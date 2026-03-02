@@ -180,7 +180,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     config_entry,
                     title=self.current_mood_name,
-                    unique_id=self._get_safe_name(self.current_mood_name),
                     data={"moods": self.moods},
                 )
 
