@@ -310,10 +310,15 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Show mood name form pre-filled with existing name
         if user_input is not None:
             new_name = user_input.get(CONF_MOOD_NAME, self.current_mood_name).strip()
-            if self._is_mood_name_taken(new_name):
-                errors[CONF_MOOD_NAME] = "mood_name_exists"
+            # Skip duplicate check if name hasn't changed
+            if new_name.lower() != self.current_mood_name.lower():
+                if self._is_mood_name_taken(new_name):
+                    errors[CONF_MOOD_NAME] = "mood_name_exists"
+                else:
+                    self.current_mood_name = new_name
             else:
                 self.current_mood_name = new_name
+            if not errors:
                 return await self.async_step_select_lights()
 
         return self.async_show_form(
