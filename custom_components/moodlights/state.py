@@ -129,13 +129,15 @@ class StateManager:
                 service = "turn_on"
                 if light_state.brightness is not None:
                     service_data["brightness"] = light_state.brightness
-                if light_state.color_temp is not None:
-                    service_data["color_temp"] = light_state.color_temp
+                # Prefer kelvin over mired; never send both to avoid conflicts
                 if light_state.color_temp_kelvin is not None:
                     service_data["color_temp_kelvin"] = light_state.color_temp_kelvin
+                elif light_state.color_temp is not None:
+                    service_data["color_temp"] = light_state.color_temp
+                # Prefer rgb over xy; never send both to avoid conflicts
                 if light_state.rgb_color is not None:
                     service_data["rgb_color"] = light_state.rgb_color
-                if light_state.xy_color is not None:
+                elif light_state.xy_color is not None:
                     service_data["xy_color"] = light_state.xy_color
                 if light_state.effect is not None:
                     service_data["effect"] = light_state.effect
