@@ -1,6 +1,6 @@
 {
   "config": {
-    "flow_title": "MoodLights",
+    "flow_title": "Mood Lights",
     "step": {
       "user": {
         "title": "Create a Mood",

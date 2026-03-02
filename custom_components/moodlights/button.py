@@ -47,7 +47,7 @@ class MoodButtonBase(ButtonEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{mood_config.mood_id}")},
             name=mood_config.name,
-            manufacturer="MoodLights",
+            manufacturer="Mood Lights",
             model="Mood",
         )
 
