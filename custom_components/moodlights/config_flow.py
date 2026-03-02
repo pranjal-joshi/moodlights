@@ -31,6 +31,8 @@ from .const import (
 if TYPE_CHECKING:
     from .manager import MoodManager
 
+    MoodLightsConfigEntry = config_entries.ConfigEntry[MoodManager]
+
 
 class CannotConnectError(HomeAssistantError):
     """Error to indicate we cannot connect."""
@@ -38,9 +40,6 @@ class CannotConnectError(HomeAssistantError):
 
 class InvalidAuthError(HomeAssistantError):
     """Error to indicate there is invalid auth."""
-
-
-type MoodLightsConfigEntry = config_entries.ConfigEntry[MoodManager]
 
 
 class MoodLightsOptionsFlow(config_entries.OptionsFlow):
@@ -219,17 +218,14 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
                         ],
                         mode=selector.SelectSelectorMode.DROPDOWN,
-                    ),
-                    label="Power State",
+                    )
                 )
             )
 
             # Brightness toggle + slider
             if has_brightness:
                 schema[vol.Optional(f"{safe_name}_brightness_enabled", default=True)] = (
-                    selector.BooleanSelector(
-                        label="Enable Brightness Adjustment",
-                    )
+                    selector.BooleanSelector()
                 )
                 schema[vol.Optional(f"{safe_name}_brightness", default=100)] = (
                     selector.NumberSelector(
@@ -239,17 +235,14 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             step=1,
                             unit_of_measurement="%",
                             mode=selector.NumberSelectorMode.SLIDER,
-                        ),
-                        label="Brightness (%)",
+                        )
                     )
                 )
 
             # Colour Temperature toggle + picker
             if has_color_temp:
                 schema[vol.Optional(f"{safe_name}_colortemp_enabled", default=True)] = (
-                    selector.BooleanSelector(
-                        label="Enable Colour Temperature Adjustment",
-                    )
+                    selector.BooleanSelector()
                 )
                 schema[vol.Optional(f"{safe_name}_colortemp", default=4000)] = (
                     selector.NumberSelector(
@@ -259,22 +252,17 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             step=100,
                             unit_of_measurement="K",
                             mode=selector.NumberSelectorMode.SLIDER,
-                        ),
-                        label="Colour Temperature (Kelvin)",
+                        )
                     )
                 )
 
             # RGB Colour toggle + picker
             if has_rgb:
                 schema[vol.Optional(f"{safe_name}_rgb_enabled", default=False)] = (
-                    selector.BooleanSelector(
-                        label="Enable RGB Colour Adjustment",
-                    )
+                    selector.BooleanSelector()
                 )
                 schema[vol.Optional(f"{safe_name}_rgb", default=[255, 255, 255])] = (
-                    selector.ColorRGBSelector(
-                        label="RGB Colour",
-                    )
+                    selector.ColorRGBSelector()
                 )
 
         return self.async_show_form(
