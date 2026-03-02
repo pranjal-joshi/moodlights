@@ -29,7 +29,8 @@
       }
     },
     "error": {
-      "no_lights_selected": "Please select at least one light."
+      "no_lights_selected": "Please select at least one light.",
+      "mood_name_exists": "A mood with this name already exists. Please choose a different name."
     }
   },
   "services": {
@@ -37,13 +38,17 @@
       "name": "Activate Mood",
       "description": "Activate a mood, saving current light states first.",
       "fields": {
-        "mood_id": {
-          "name": "Mood ID",
-          "description": "The unique identifier of the mood (e.g. mood_0)."
+        "config_entry_id": {
+          "name": "MoodLights Instance",
+          "description": "Select the MoodLights integration instance to use."
+        },
+        "mood_name": {
+          "name": "Mood Name",
+          "description": "The name of the mood to activate (exactly as entered during setup)."
         },
         "preset_name": {
-          "name": "Preset Name",
-          "description": "Optional label for the state snapshot saved before activation."
+          "name": "Snapshot Label",
+          "description": "Optional label for the light state snapshot saved before activation."
         }
       }
     },
@@ -51,9 +56,13 @@
       "name": "Restore Previous",
       "description": "Restore the lights for a mood to their last saved state.",
       "fields": {
-        "mood_id": {
-          "name": "Mood ID",
-          "description": "The unique identifier of the mood to restore."
+        "config_entry_id": {
+          "name": "MoodLights Instance",
+          "description": "Select the MoodLights integration instance to use."
+        },
+        "mood_name": {
+          "name": "Mood Name",
+          "description": "The name of the mood to restore (exactly as entered during setup)."
         }
       }
     },
@@ -61,12 +70,16 @@
       "name": "Save State",
       "description": "Manually snapshot the current state of a mood's lights.",
       "fields": {
-        "mood_id": {
-          "name": "Mood ID",
-          "description": "The unique identifier of the mood whose lights to snapshot."
+        "config_entry_id": {
+          "name": "MoodLights Instance",
+          "description": "Select the MoodLights integration instance to use."
+        },
+        "mood_name": {
+          "name": "Mood Name",
+          "description": "The name of the mood whose lights to snapshot (exactly as entered during setup)."
         },
         "preset_name": {
-          "name": "Preset Name",
+          "name": "Snapshot Label",
           "description": "Optional label for this snapshot."
         }
       }

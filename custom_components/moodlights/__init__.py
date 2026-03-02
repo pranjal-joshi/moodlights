@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
 PLATFORMS = [Platform.BUTTON]
 
-ATTR_ENTRY_ID = "entry_id"
-ATTR_MOOD_ID = "mood_id"
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"
+ATTR_MOOD_NAME = "mood_name"
 ATTR_PRESET_NAME = "preset_name"
 
 SERVICE_ACTIVATE_MOOD = "activate_mood"
@@ -32,25 +32,45 @@ def _build_schemas() -> tuple:
 
     activate = vol.Schema(
         {
-            vol.Required(ATTR_ENTRY_ID): cv.string,
-            vol.Required(ATTR_MOOD_ID): cv.string,
+            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+            vol.Required(ATTR_MOOD_NAME): cv.string,
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
         }
     )
     restore = vol.Schema(
         {
-            vol.Required(ATTR_ENTRY_ID): cv.string,
-            vol.Required(ATTR_MOOD_ID): cv.string,
+            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+            vol.Required(ATTR_MOOD_NAME): cv.string,
         }
     )
     save = vol.Schema(
         {
-            vol.Required(ATTR_ENTRY_ID): cv.string,
-            vol.Required(ATTR_MOOD_ID): cv.string,
+            vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+            vol.Required(ATTR_MOOD_NAME): cv.string,
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
         }
     )
     return activate, restore, save
+
+
+def _resolve_mood(hass: HomeAssistant, entry_id: str, mood_name: str):
+    """Resolve a mood by entry_id and mood name. Raises ServiceValidationError on failure."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if not entry or entry.domain != DOMAIN or not entry.state:
+        raise ServiceValidationError(
+            f"MoodLights config entry '{entry_id}' not found or not loaded."
+        )
+
+    manager: MoodManager = entry.runtime_data
+    mood = manager.get_mood_by_name(mood_name)
+    if mood is None:
+        available = ", ".join(
+            f"'{m.name}'" for m in manager.get_all_moods().values()
+        )
+        raise ServiceValidationError(
+            f"Mood '{mood_name}' not found. Available moods: {available or 'none'}."
+        )
+    return manager, mood
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -61,45 +81,30 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
 
     async def handle_activate_mood(call: ServiceCall) -> None:
         """Handle the activate_mood service call."""
-        entry_id = call.data[ATTR_ENTRY_ID]
-        mood_id = call.data[ATTR_MOOD_ID]
+        manager, mood = _resolve_mood(
+            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
+        )
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
-
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if not entry or entry.domain != DOMAIN or not entry.state:
-            raise ServiceValidationError(f"Invalid config entry: {entry_id}")
-
-        manager: MoodManager = entry.runtime_data
-        await manager.activate_mood(mood_id, preset_name=preset_name)
+        await manager.activate_mood(mood.mood_id, preset_name=preset_name)
 
     async def handle_restore_previous(call: ServiceCall) -> None:
         """Handle the restore_previous service call."""
-        entry_id = call.data[ATTR_ENTRY_ID]
-        mood_id = call.data[ATTR_MOOD_ID]
-
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if not entry or entry.domain != DOMAIN or not entry.state:
-            raise ServiceValidationError(f"Invalid config entry: {entry_id}")
-
-        manager: MoodManager = entry.runtime_data
-        success = await manager.restore_previous(mood_id)
+        manager, mood = _resolve_mood(
+            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
+        )
+        success = await manager.restore_previous(mood.mood_id)
         if not success:
             raise ServiceValidationError(
-                f"No saved state to restore for mood '{mood_id}'"
+                f"No saved state to restore for mood '{mood.name}'."
             )
 
     async def handle_save_state(call: ServiceCall) -> None:
         """Handle the save_state service call."""
-        entry_id = call.data[ATTR_ENTRY_ID]
-        mood_id = call.data[ATTR_MOOD_ID]
+        manager, mood = _resolve_mood(
+            hass, call.data[ATTR_CONFIG_ENTRY_ID], call.data[ATTR_MOOD_NAME]
+        )
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
-
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if not entry or entry.domain != DOMAIN or not entry.state:
-            raise ServiceValidationError(f"Invalid config entry: {entry_id}")
-
-        manager: MoodManager = entry.runtime_data
-        await manager.save_state(mood_id, preset_name=preset_name)
+        await manager.save_state(mood.mood_id, preset_name=preset_name)
 
     hass.services.async_register(
         DOMAIN,

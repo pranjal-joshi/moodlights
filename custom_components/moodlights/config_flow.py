@@ -57,9 +57,15 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict | None = None
     ) -> config_entries.ConfigFlowResult:
         """Handle the initial step - enter mood name."""
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
-            return await self.async_step_select_lights()
+            mood_name = user_input.get(CONF_MOOD_NAME, "").strip()
+            if self._is_mood_name_taken(mood_name):
+                errors[CONF_MOOD_NAME] = "mood_name_exists"
+            else:
+                self.current_mood_name = mood_name
+                return await self.async_step_select_lights()
 
         return self.async_show_form(
             step_id="user",
@@ -71,8 +77,23 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
             }),
+            errors=errors,
             last_step=False,
         )
+
+    def _is_mood_name_taken(self, name: str) -> bool:
+        """Return True if another config entry already uses this mood name (case-insensitive)."""
+        name_lower = name.lower()
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            for mood in entry.data.get("moods", []):
+                if mood.get(CONF_MOOD_NAME, "").lower() == name_lower:
+                    # Allow the same name when reconfiguring the same entry
+                    if self.source == SOURCE_RECONFIGURE:
+                        reconfigure_entry = self._get_reconfigure_entry()
+                        if entry.entry_id == reconfigure_entry.entry_id:
+                            continue
+                    return True
+        return False
 
     async def async_step_import(self, _import_info: dict | None) -> config_entries.ConfigFlowResult:
         """Handle import from YAML."""
@@ -288,10 +309,16 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.selected_lights = current_mood.get(CONF_LIGHTS, [])
         self.moods = []
 
+        errors: dict[str, str] = {}
+
         # Show mood name form pre-filled with existing name
         if user_input is not None:
-            self.current_mood_name = user_input.get(CONF_MOOD_NAME, self.current_mood_name)
-            return await self.async_step_select_lights()
+            new_name = user_input.get(CONF_MOOD_NAME, self.current_mood_name).strip()
+            if self._is_mood_name_taken(new_name):
+                errors[CONF_MOOD_NAME] = "mood_name_exists"
+            else:
+                self.current_mood_name = new_name
+                return await self.async_step_select_lights()
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -300,6 +327,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
             }),
+            errors=errors,
             last_step=False,
         )
 
