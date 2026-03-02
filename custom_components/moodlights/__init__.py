@@ -128,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MoodLightsConfigEntry) -
     """Set up MoodLights from a config entry."""
     from .manager import MoodManager
 
-    manager = MoodManager(hass)
+    manager = MoodManager(hass, options=entry.options)
     await manager.load_moods(entry.data)
 
     entry.runtime_data = manager

@@ -21,7 +21,7 @@ from .const import (
     LIGHT_POWER_ON,
     LOGGER,
 )
-from .state import StateManager
+from .state import DEFAULT_MAX_STATES, StateManager
 
 
 @dataclass
@@ -37,11 +37,16 @@ class MoodConfig:
 class MoodManager:
     """Manages all moods and their operations."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(
+        self, hass: HomeAssistant, options: dict | None = None
+    ) -> None:
         """Initialize the mood manager."""
         self._hass = hass
         self._moods: dict[str, MoodConfig] = {}
-        self._state_manager = StateManager(hass)
+
+        opts = options or {}
+        max_states = opts.get("max_states", DEFAULT_MAX_STATES)
+        self._state_manager = StateManager(hass, max_states=max_states)
 
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""

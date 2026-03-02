@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
@@ -30,6 +31,9 @@ if TYPE_CHECKING:
 
     MoodLightsConfigEntry = config_entries.ConfigEntry[MoodManager]
 
+CONF_MAX_STATES = "max_states"
+CONF_DEFAULT_BRIGHTNESS = "default_brightness"
+
 
 class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MoodLights."""
@@ -41,6 +45,12 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.moods: list[dict] = []
         self.current_mood_name: str = ""
         self.selected_lights: list[str] = []
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        """Get the options flow for this handler."""
+        return MoodLightsOptionsFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict | None = None
@@ -63,6 +73,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_description={
                 "hint": "Enter a unique name for your mood. This will help you identify it later."
             },
+            last_step=False,
         )
 
     async def async_step_import(self, _import_info: dict | None) -> config_entries.ConfigFlowResult:
@@ -82,6 +93,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data_description={
                         "hint": "Select at least one light for this mood."
                     },
+                    last_step=False,
                 )
 
             return await self.async_step_configure_lights()
@@ -92,6 +104,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_description={
                 "hint": "Select the lights you want to control with this mood."
             },
+            last_step=False,
         )
 
     def _get_lights_schema(self) -> vol.Schema:
@@ -244,8 +257,106 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="configure_lights",
             data_schema=vol.Schema(schema),
+            last_step=True,
         )
 
     def _get_safe_name(self, name: str) -> str:
         """Convert a name to a safe key format."""
         return name.replace(" ", "_").replace(".", "_").replace("-", "_").lower()
+
+    async def async_step_reconfigure(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Add reconfigure step to allow reconfiguration of the mood."""
+        config_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if config_entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+
+        if user_input is not None:
+            return self.async_update_reload_and_abort(
+                config_entry,
+                unique_id=config_entry.unique_id,
+                data={**config_entry.data, **user_input},
+                reason="reconfigure_successful",
+            )
+
+        moods = config_entry.data.get("moods", [])
+        current_mood = moods[0] if moods else {}
+
+        data_schema = vol.Schema({
+            vol.Required(
+                CONF_MOOD_NAME,
+                default=current_mood.get(CONF_MOOD_NAME, ""),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            ),
+        })
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=data_schema,
+            last_step=True,
+        )
+
+
+class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handles the options flow for MoodLights."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+        self.options = dict(config_entry.options)
+
+    async def async_step_init(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+        """Handle options flow - show menu."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["general_options", "about"],
+        )
+
+    async def async_step_general_options(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+        """Handle general options step."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return self.async_create_entry(title="", data=self.options)
+
+        data_schema = vol.Schema({
+            vol.Optional(
+                CONF_MAX_STATES,
+                default=self.options.get(CONF_MAX_STATES, 3),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=10,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_DEFAULT_BRIGHTNESS,
+                default=self.options.get(CONF_DEFAULT_BRIGHTNESS, 100),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=100,
+                    step=1,
+                    unit_of_measurement="%",
+                    mode=selector.NumberSelectorMode.SLIDER,
+                )
+            ),
+        })
+
+        return self.async_show_form(
+            step_id="general_options",
+            data_schema=data_schema,
+            last_step=True,
+        )
+
+    async def async_step_about(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+        """Handle about step."""
+        return self.async_show_form(
+            step_id="about",
+            data_schema=vol.Schema({}),
+            last_step=True,
+        )

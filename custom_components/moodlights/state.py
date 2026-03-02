@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from .const import LOGGER
 
-DEFAULT_MAX_STATES = 3
+DEFAULT_MAX_STATES = 1
 
 
 @dataclass
