@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import (
@@ -26,6 +28,20 @@ from .const import (
     MIN_COLOR_TEMP_KELVIN,
 )
 
+if TYPE_CHECKING:
+    from .manager import MoodManager
+
+
+class CannotConnectError(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuthError(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
+
+
+type MoodLightsConfigEntry = config_entries.ConfigEntry[MoodManager]
+
 
 class MoodLightsOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for MoodLights."""
@@ -34,14 +50,14 @@ class MoodLightsOptionsFlow(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_init(self, _user_input: dict | None = None) -> FlowResult:
         """Manage options."""
         return self.async_show_menu(
             step_id="init",
             menu_options=["reconfigure"],
         )
 
-    async def async_step_reconfigure(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_reconfigure(self, _user_input: dict | None = None) -> FlowResult:
         """Handle reconfiguration of a mood."""
         # For now, just show a message that reconfiguration needs to be done via deletion
         return self.async_abort(reason="reconfigure_not_supported")
@@ -57,6 +73,12 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.moods: list[dict] = []
         self.current_mood_name: str = ""
         self.selected_lights: list[str] = []
+
+    async def async_get_options_flow(
+        self, entry: config_entries.ConfigEntry
+    ) -> MoodLightsOptionsFlow:
+        """Get the options flow."""
+        return MoodLightsOptionsFlow(entry)
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - enter mood name."""
@@ -75,7 +97,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         return await self.async_step_select_lights()
 
-    async def async_step_import(self, import_info: dict | None) -> FlowResult:
+    async def async_step_import(self, _import_info: dict | None) -> FlowResult:
         """Handle import from YAML."""
         return await self.async_step_user(None)
 

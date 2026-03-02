@@ -1,8 +1,9 @@
 """Button platform for MoodLights."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -10,15 +11,18 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 from .manager import MoodConfig, MoodManager
 
+if TYPE_CHECKING:
+    from .config_flow import MoodLightsConfigEntry
+
 
 async def async_setup_entry(
-    hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    _hass: HomeAssistant,
+    entry: MoodLightsConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up MoodLights button entities."""
-    manager: MoodManager = hass.data[DOMAIN][config_entry.entry_id]
-    entry_id = config_entry.entry_id
+    manager: MoodManager = entry.runtime_data
+    entry_id = entry.entry_id
 
     entities: list[ButtonEntity] = []
     for _mood_id, mood_config in manager.get_all_moods().items():

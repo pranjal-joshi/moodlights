@@ -8,6 +8,7 @@
   "integration_type": "integration",
   "iot_class": "local_push",
   "quality_scale": "gold",
+  "loggers": ["custom_components.moodlights"],
   "requirements": [],
   "dependencies": [],
   "version": "0.1.0"
