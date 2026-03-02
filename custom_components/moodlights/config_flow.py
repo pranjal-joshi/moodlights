@@ -116,7 +116,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         })
 
     async def async_step_configure_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
-        """Configure all lights with toggle pattern for optional settings."""
+        """Configure all lights — optional fields are left blank if not applied."""
         if user_input is not None:
             light_configs = {}
 
@@ -127,33 +127,24 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 light_name = light_state.name if light_state else entity_id
                 safe_name = self._get_safe_name(light_name)
 
-                # Power (always visible)
+                # Power (always present)
                 power_key = f"{safe_name}_power"
                 config[CONF_LIGHT_POWER] = user_input.get(power_key, LIGHT_POWER_DONT_CHANGE)
 
-                # Brightness setting
-                brightness_enabled_key = f"{safe_name}_brightness_enabled"
-                brightness_key = f"{safe_name}_brightness"
-                if user_input.get(brightness_enabled_key):
-                    brightness_value = user_input.get(brightness_key)
-                    if brightness_value is not None:
-                        config[CONF_LIGHT_BRIGHTNESS] = int(brightness_value)
+                # Brightness — only save if user provided a value
+                brightness_value = user_input.get(f"{safe_name}_brightness")
+                if brightness_value is not None:
+                    config[CONF_LIGHT_BRIGHTNESS] = int(brightness_value)
 
-                # Colour Temperature setting
-                colortemp_enabled_key = f"{safe_name}_colortemp_enabled"
-                colortemp_key = f"{safe_name}_colortemp"
-                if user_input.get(colortemp_enabled_key):
-                    colortemp_value = user_input.get(colortemp_key)
-                    if colortemp_value is not None:
-                        config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
+                # Colour Temperature — only save if user provided a value
+                colortemp_value = user_input.get(f"{safe_name}_colortemp")
+                if colortemp_value is not None:
+                    config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
 
-                # RGB Color setting
-                rgb_enabled_key = f"{safe_name}_rgb_enabled"
-                rgb_key = f"{safe_name}_rgb"
-                if user_input.get(rgb_enabled_key):
-                    rgb_value = user_input.get(rgb_key)
-                    if rgb_value is not None:
-                        config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
+                # RGB Color — only save if user provided a value
+                rgb_value = user_input.get(f"{safe_name}_rgb")
+                if rgb_value is not None:
+                    config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
 
                 light_configs[entity_id] = config
 
@@ -184,7 +175,15 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={"moods": self.moods},
             )
 
-        # Build schema with toggle pattern for each light
+        # Load existing light_config for pre-filling during reconfigure
+        existing_light_config: dict = {}
+        if self.source == SOURCE_RECONFIGURE:
+            reconfigure_entry = self._get_reconfigure_entry()
+            moods = reconfigure_entry.data.get("moods", [])
+            if moods:
+                existing_light_config = moods[0].get(CONF_LIGHT_CONFIG, {})
+
+        # Build schema — optional fields have no default (renders blank); pre-fill from existing data on reconfigure
         schema = {}
 
         for entity_id in self.selected_lights:
@@ -192,6 +191,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             light_name = light_state.name if light_state else entity_id
             safe_name = self._get_safe_name(light_name)
             supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
+            stored = existing_light_config.get(entity_id, {})
 
             # Detect capabilities
             has_brightness = bool(supported_modes) and not (
@@ -200,12 +200,13 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             has_color_temp = "color_temp" in supported_modes
             has_rgb = any(mode in supported_modes for mode in ("rgb", "rgbw", "rgbww", "hs", "xy"))
 
-            # Get min/max kelvin
+            # Get min/max kelvin from light attributes
             min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN) if light_state else MIN_COLOR_TEMP_KELVIN
             max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN) if light_state else MAX_COLOR_TEMP_KELVIN
 
-            # Power selector (always visible)
-            schema[vol.Required(f"{safe_name}_power", default=LIGHT_POWER_DONT_CHANGE)] = (
+            # Power selector (always visible) — pre-fill from stored config
+            stored_power = stored.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+            schema[vol.Required(f"{safe_name}_power", default=stored_power)] = (
                 selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
@@ -218,48 +219,51 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             )
 
-            # Brightness toggle + slider
+            # Brightness — plain optional, no default; pre-fill if stored
             if has_brightness:
-                schema[vol.Optional(f"{safe_name}_brightness_enabled", default=True)] = (
-                    selector.BooleanSelector()
+                stored_brightness = stored.get(CONF_LIGHT_BRIGHTNESS)
+                brightness_key = (
+                    vol.Optional(f"{safe_name}_brightness", default=stored_brightness)
+                    if stored_brightness is not None
+                    else vol.Optional(f"{safe_name}_brightness")
                 )
-                schema[vol.Optional(f"{safe_name}_brightness", default=100)] = (
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=MIN_BRIGHTNESS,
-                            max=MAX_BRIGHTNESS,
-                            step=1,
-                            unit_of_measurement="%",
-                            mode=selector.NumberSelectorMode.SLIDER,
-                        )
+                schema[brightness_key] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=MIN_BRIGHTNESS,
+                        max=MAX_BRIGHTNESS,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=selector.NumberSelectorMode.SLIDER,
                     )
                 )
 
-            # Colour Temperature toggle + picker
+            # Colour Temperature — plain optional, no default; pre-fill if stored
             if has_color_temp:
-                schema[vol.Optional(f"{safe_name}_colortemp_enabled", default=True)] = (
-                    selector.BooleanSelector()
+                stored_colortemp = stored.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
+                colortemp_key = (
+                    vol.Optional(f"{safe_name}_colortemp", default=stored_colortemp)
+                    if stored_colortemp is not None
+                    else vol.Optional(f"{safe_name}_colortemp")
                 )
-                schema[vol.Optional(f"{safe_name}_colortemp", default=4000)] = (
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=min_kelvin,
-                            max=max_kelvin,
-                            step=100,
-                            unit_of_measurement="K",
-                            mode=selector.NumberSelectorMode.SLIDER,
-                        )
+                schema[colortemp_key] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=min_kelvin,
+                        max=max_kelvin,
+                        step=100,
+                        unit_of_measurement="K",
+                        mode=selector.NumberSelectorMode.SLIDER,
                     )
                 )
 
-            # RGB Colour toggle + picker
+            # RGB Color — plain optional, no default; pre-fill if stored
             if has_rgb:
-                schema[vol.Optional(f"{safe_name}_rgb_enabled", default=False)] = (
-                    selector.BooleanSelector()
+                stored_rgb = stored.get(CONF_LIGHT_RGB_COLOR)
+                rgb_key = (
+                    vol.Optional(f"{safe_name}_rgb", default=stored_rgb)
+                    if stored_rgb is not None
+                    else vol.Optional(f"{safe_name}_rgb")
                 )
-                schema[vol.Optional(f"{safe_name}_rgb", default=[255, 255, 255])] = (
-                    selector.ColorRGBSelector()
-                )
+                schema[rgb_key] = selector.ColorRGBSelector()
 
         return self.async_show_form(
             step_id="configure_lights",

@@ -18,7 +18,7 @@
       },
       "configure_lights": {
         "title": "Configure Lights",
-        "description": "For each light, enable and configure the settings you want to apply when this mood is activated."
+        "description": "Set the desired state for each light. Leave brightness, colour temperature, or RGB colour blank to skip that setting when the mood is activated."
       },
       "reconfigure": {
         "title": "Reconfigure Mood",
