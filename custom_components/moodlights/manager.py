@@ -19,6 +19,7 @@ from .const import (
     LIGHT_POWER_DONT_CHANGE,
     LIGHT_POWER_OFF,
     LIGHT_POWER_ON,
+    LOGGER,
 )
 from .state import StateManager
 

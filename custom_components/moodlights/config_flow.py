@@ -1,13 +1,10 @@
 """Config flow for MoodLights."""
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import (
@@ -34,34 +31,6 @@ if TYPE_CHECKING:
     MoodLightsConfigEntry = config_entries.ConfigEntry[MoodManager]
 
 
-class CannotConnectError(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidAuthError(HomeAssistantError):
-    """Error to indicate there is invalid auth."""
-
-
-class MoodLightsOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for MoodLights."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
-    async def async_step_init(self, _user_input: dict | None = None) -> FlowResult:
-        """Manage options."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["reconfigure"],
-        )
-
-    async def async_step_reconfigure(self, _user_input: dict | None = None) -> FlowResult:
-        """Handle reconfiguration of a mood."""
-        # For now, just show a message that reconfiguration needs to be done via deletion
-        return self.async_abort(reason="reconfigure_not_supported")
-
-
 class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MoodLights."""
 
@@ -73,37 +42,34 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.current_mood_name: str = ""
         self.selected_lights: list[str] = []
 
-    async def async_get_options_flow(
-        self, entry: config_entries.ConfigEntry
-    ) -> MoodLightsOptionsFlow:
-        """Get the options flow."""
-        return MoodLightsOptionsFlow(entry)
-
-    async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial step - enter mood name."""
-        if user_input is None:
-            await self.async_set_unique_id(str(uuid.uuid4()))
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema({
-                    vol.Required(CONF_MOOD_NAME, description={"suggested_value": "Movie Night"}): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
-                }),
-                description_placeholders={
-                    "hint": "Enter a unique name for your mood. This will help you identify it later."
-                },
-            )
+        if user_input is not None:
+            self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
+            return await self.async_step_select_lights()
 
-        self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
-        self._abort_if_unique_id_configured()
-        return await self.async_step_select_lights()
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_MOOD_NAME,
+                    default=(user_input or {}).get(CONF_MOOD_NAME, vol.UNDEFINED),
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                ),
+            }),
+            data_description={
+                "hint": "Enter a unique name for your mood. This will help you identify it later."
+            },
+        )
 
-    async def async_step_import(self, _import_info: dict | None) -> FlowResult:
+    async def async_step_import(self, _import_info: dict | None) -> config_entries.ConfigFlowResult:
         """Handle import from YAML."""
         return await self.async_step_user(None)
 
-    async def async_step_select_lights(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_select_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Select light entities for this mood."""
         if user_input is not None:
             self.selected_lights = user_input.get(CONF_LIGHTS, [])
@@ -113,6 +79,9 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="select_lights",
                     data_schema=self._get_lights_schema(),
                     errors={"base": "no_lights_selected"},
+                    data_description={
+                        "hint": "Select at least one light for this mood."
+                    },
                 )
 
             return await self.async_step_configure_lights()
@@ -120,6 +89,9 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="select_lights",
             data_schema=self._get_lights_schema(),
+            data_description={
+                "hint": "Select the lights you want to control with this mood."
+            },
         )
 
     def _get_lights_schema(self) -> vol.Schema:
@@ -133,7 +105,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         })
 
-    async def async_step_configure_lights(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_configure_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Configure all lights with toggle pattern for optional settings."""
         if user_input is not None:
             light_configs = {}
@@ -182,6 +154,10 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
 
             self.moods.append(mood_data)
+
+            # Set unique_id in final step, after all validation is done
+            await self.async_set_unique_id(self._get_safe_name(self.current_mood_name))
+            self._abort_if_unique_id_configured()
 
             return self.async_create_entry(
                 title=self.current_mood_name,

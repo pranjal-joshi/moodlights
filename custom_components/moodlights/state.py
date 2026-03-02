@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+from .const import LOGGER
+
 DEFAULT_MAX_STATES = 3
 
 

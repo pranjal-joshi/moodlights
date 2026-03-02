@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 async def async_setup_entry(
-    _hass: HomeAssistant,
+    hass: HomeAssistant,  # noqa: ARG001
     entry: MoodLightsConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -51,7 +51,6 @@ class MoodButtonBase(ButtonEntity):
             name=mood_config.name,
             manufacturer="MoodLights",
             model="Mood",
-            sw_version="0.1.0",
         )
 
 
