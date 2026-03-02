@@ -50,7 +50,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
-        return MoodLightsOptionsFlowHandler(config_entry)
+        return MoodLightsOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict | None = None
@@ -297,11 +297,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
     """Handles the options flow for MoodLights."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-        self.options = dict(config_entry.options)
-
     async def async_step_init(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Handle options flow - show menu."""
         return self.async_show_menu(
@@ -311,14 +306,16 @@ class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_general_options(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Handle general options step."""
+        options = dict(self.config_entry.options)
+
         if user_input is not None:
-            self.options.update(user_input)
-            return self.async_create_entry(title="", data=self.options)
+            options.update(user_input)
+            return self.async_create_entry(title="", data=options)
 
         data_schema = vol.Schema({
             vol.Optional(
                 CONF_MAX_STATES,
-                default=self.options.get(CONF_MAX_STATES, 3),
+                default=options.get(CONF_MAX_STATES, 3),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=1,
@@ -329,7 +326,7 @@ class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
             ),
             vol.Optional(
                 CONF_DEFAULT_BRIGHTNESS,
-                default=self.options.get(CONF_DEFAULT_BRIGHTNESS, 100),
+                default=options.get(CONF_DEFAULT_BRIGHTNESS, 100),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=1,
