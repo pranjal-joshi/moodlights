@@ -1,6 +1,7 @@
 """MoodLights - Easy mood-based light management for Home Assistant."""
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from .const import DOMAIN
@@ -9,9 +10,10 @@ if TYPE_CHECKING:
     from homeassistant import config_entries
     from homeassistant.core import HomeAssistant
 
+_LOGGER = logging.getLogger(__name__)
+
 __version__ = "0.1.0"
 
-# Service field names
 ATTR_MOOD_ID = "mood_id"
 ATTR_PRESET_NAME = "preset_name"
 
@@ -19,8 +21,10 @@ SERVICE_ACTIVATE_MOOD = "activate_mood"
 SERVICE_RESTORE_PREVIOUS = "restore_previous"
 SERVICE_SAVE_STATE = "save_state"
 
+PLATFORMS = ["button"]
 
-def _build_schemas():
+
+def _build_schemas() -> tuple:
     """Build voluptuous service schemas (deferred so HA is not required at import time)."""
     import voluptuous as vol
     from homeassistant.helpers import config_validation as cv
@@ -51,6 +55,15 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     return True
 
 
+async def async_will_start_from_async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
+    """Called when a config entry is about to be started.
+
+    This is the place to register services - they're global to the integration.
+    """
+    if not hass.services.has_service(DOMAIN, SERVICE_ACTIVATE_MOOD):
+        _register_services(hass)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
     """Set up MoodLights from a config entry."""
     from .manager import MoodManager
@@ -62,21 +75,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEnt
     hass.data[DOMAIN][entry.entry_id] = manager
 
     try:
-        await hass.config_entries.async_forward_entry_setups(entry, ["button"])
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
-        # If button platform fails, remove manager and re-raise
+        _LOGGER.exception("Error setting up MoodLights platform")
         hass.data[DOMAIN].pop(entry.entry_id, None)
         raise
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
-    # Register services only once (on first entry setup)
-    try:
-        if not hass.services.has_service(DOMAIN, SERVICE_ACTIVATE_MOOD):
-            _register_services(hass)
-    except Exception:
-        # Service registration failure shouldn't abort setup
-        pass
+    entry.async_on_unload(
+        entry.add_delayed_start_listener(async_will_start_from_async_setup_entry)
+    )
 
     return True
 
@@ -144,60 +152,40 @@ def _register_services(hass: HomeAssistant) -> None:
         handle_save_state,
         schema=schema_save,
     )
+    _LOGGER.debug("MoodLights services registered")
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
-    """Unload a config entry (called on reload or before removal)."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["button"])
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     manager = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if manager:
         await manager.async_unload()
 
-    # Remove services when no entries remain
-    remaining = {
-        k: v for k, v in hass.data.get(DOMAIN, {}).items()
-        if k != entry.entry_id
-    }
-    if not remaining:
-        for service_name in (SERVICE_ACTIVATE_MOOD, SERVICE_RESTORE_PREVIOUS, SERVICE_SAVE_STATE):
-            if hass.services.has_service(DOMAIN, service_name):
-                hass.services.async_remove(DOMAIN, service_name)
-
     return unload_ok
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
-    """Clean up everything when the user deletes the integration.
-
-    Called by HA after async_unload_entry. This is the place for permanent
-    cleanup: device registry, entity registry, and hass.data.
-    """
+    """Clean up when the integration is removed."""
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
 
-    # Remove all devices owned by this config entry (entities are removed automatically)
+    # Remove devices owned by this config entry
     device_reg = dr.async_get(hass)
-    devices_to_remove = [
-        device.id
-        for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id)
-    ]
-    for device_id in devices_to_remove:
-        device_reg.async_remove_device(device_id)
+    for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+        device_reg.async_remove_device(device.id)
 
-    # Belt-and-suspenders: remove any orphaned entity registry entries
+    # Remove orphaned entities
     entity_reg = er.async_get(hass)
-    entities_to_remove = [
-        ent.entity_id
-        for ent in er.async_entries_for_config_entry(entity_reg, entry.entry_id)
-    ]
-    for entity_id in entities_to_remove:
-        entity_reg.async_remove(entity_id)
+    for entity in er.async_entries_for_config_entry(entity_reg, entry.entry_id):
+        entity_reg.async_remove(entity.entity_id)
 
-    # Final hass.data cleanup
-    hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    # Clean up hass.data
+    if entry.entry_id in hass.data.get(DOMAIN, {}):
+        hass.data[DOMAIN].pop(entry.entry_id)
     if DOMAIN in hass.data and not hass.data[DOMAIN]:
-        hass.data.pop(DOMAIN, None)
+        hass.data.pop(DOMAIN)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:

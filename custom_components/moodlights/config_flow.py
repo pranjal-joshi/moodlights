@@ -27,6 +27,26 @@ from .const import (
 )
 
 
+class MoodLightsOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for MoodLights."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
+        """Manage options."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["reconfigure"],
+        )
+
+    async def async_step_reconfigure(self, user_input: dict | None = None) -> FlowResult:
+        """Handle reconfiguration of a mood."""
+        # For now, just show a message that reconfiguration needs to be done via deletion
+        return self.async_abort(reason="reconfigure_not_supported")
+
+
 class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MoodLights."""
 
@@ -54,6 +74,10 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.current_mood_name = user_input.get(CONF_MOOD_NAME, "New Mood")
         self._abort_if_unique_id_configured()
         return await self.async_step_select_lights()
+
+    async def async_step_import(self, import_info: dict | None) -> FlowResult:
+        """Handle import from YAML."""
+        return await self.async_step_user(None)
 
     async def async_step_select_lights(self, user_input: dict | None = None) -> FlowResult:
         """Select light entities for this mood."""
@@ -150,7 +174,6 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
 
             # Detect capabilities
-            # Any light with color modes (except "onoff") supports brightness
             has_brightness = bool(supported_modes) and not (
                 len(supported_modes) == 1 and supported_modes[0] == "onoff"
             )
