@@ -44,7 +44,6 @@ class MoodButtonBase(ButtonEntity):
         self._config = mood_config
         self._manager = manager
         self._entry_id = entry_id
-        self._attr_entity_category = "control"  # Group entities logically under 'Control' category
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{mood_config.mood_id}")},
             name=mood_config.name,
