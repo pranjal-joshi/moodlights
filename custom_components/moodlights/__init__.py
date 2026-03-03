@@ -136,8 +136,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: MoodLightsConfigEntry) -
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     return True
 
 
@@ -164,8 +162,3 @@ async def async_remove_entry(hass: HomeAssistant, entry: MoodLightsConfigEntry) 
     for entity in er.async_entries_for_config_entry(entity_reg, entry.entry_id):
         entity_reg.async_remove(entity.entity_id)
 
-
-async def async_reload_entry(hass: HomeAssistant, entry: MoodLightsConfigEntry) -> None:
-    """Reload a config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
