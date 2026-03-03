@@ -18,6 +18,8 @@ Easy mood-based light management for Home Assistant.
 
 ## Installation
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pranjal-joshi&repository=moodlights&category=integration)
+
 ### Option 1: HACS (Recommended)
 
 1. Open Home Assistant
@@ -33,6 +35,8 @@ Easy mood-based light management for Home Assistant.
 3. Restart Home Assistant
 
 ## Configuration
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=moodlights)
 
 ### Via UI
 
