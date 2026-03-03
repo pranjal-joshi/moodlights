@@ -1,4 +1,5 @@
 """Config flow for MoodLights."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -46,7 +47,9 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
         return MoodLightsOptionsFlowHandler()
 
@@ -66,14 +69,16 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_MOOD_NAME,
-                    default=(user_input or {}).get(CONF_MOOD_NAME, vol.UNDEFINED),
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_MOOD_NAME,
+                        default=(user_input or {}).get(CONF_MOOD_NAME, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                }
+            ),
             errors=errors,
             last_step=False,
         )
@@ -92,11 +97,15 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     return True
         return False
 
-    async def async_step_import(self, _import_info: dict | None) -> config_entries.ConfigFlowResult:
+    async def async_step_import(
+        self, _import_info: dict | None
+    ) -> config_entries.ConfigFlowResult:
         """Handle import from YAML."""
         return await self.async_step_user(None)
 
-    async def async_step_select_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+    async def async_step_select_lights(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Select light entities for this mood."""
         if user_input is not None:
             self.selected_lights = user_input.get(CONF_LIGHTS, [])
@@ -124,16 +133,20 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if default_lights
             else vol.Required(CONF_LIGHTS)
         )
-        return vol.Schema({
-            lights_key: selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    multiple=True,
-                    filter=selector.EntityFilterSelectorConfig(domain="light"),
-                )
-            ),
-        })
+        return vol.Schema(
+            {
+                lights_key: selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        multiple=True,
+                        filter=selector.EntityFilterSelectorConfig(domain="light"),
+                    )
+                ),
+            }
+        )
 
-    async def async_step_configure_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+    async def async_step_configure_lights(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Configure all lights — optional fields are left blank if not applied."""
         if user_input is not None:
             light_configs = {}
@@ -147,7 +160,9 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Power (always present)
                 power_key = f"{safe_name}_power"
-                config[CONF_LIGHT_POWER] = user_input.get(power_key, LIGHT_POWER_DONT_CHANGE)
+                config[CONF_LIGHT_POWER] = user_input.get(
+                    power_key, LIGHT_POWER_DONT_CHANGE
+                )
 
                 # Brightness — only save if user provided a value
                 brightness_value = user_input.get(f"{safe_name}_brightness")
@@ -207,7 +222,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             light_state = self.hass.states.get(entity_id)
             light_name = light_state.name if light_state else entity_id
             safe_name = self._get_safe_name(light_name)
-            supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
+            supported_modes = (
+                light_state.attributes.get("supported_color_modes", [])
+                if light_state
+                else []
+            )
             stored = existing_light_config.get(entity_id, {})
 
             # Detect capabilities
@@ -215,11 +234,25 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 len(supported_modes) == 1 and supported_modes[0] == "onoff"
             )
             has_color_temp = "color_temp" in supported_modes
-            has_rgb = any(mode in supported_modes for mode in ("rgb", "rgbw", "rgbww", "hs", "xy"))
+            has_rgb = any(
+                mode in supported_modes for mode in ("rgb", "rgbw", "rgbww", "hs", "xy")
+            )
 
             # Get min/max kelvin from light attributes
-            min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN) if light_state else MIN_COLOR_TEMP_KELVIN
-            max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN) if light_state else MAX_COLOR_TEMP_KELVIN
+            min_kelvin = (
+                light_state.attributes.get(
+                    "min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN
+                )
+                if light_state
+                else MIN_COLOR_TEMP_KELVIN
+            )
+            max_kelvin = (
+                light_state.attributes.get(
+                    "max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN
+                )
+                if light_state
+                else MAX_COLOR_TEMP_KELVIN
+            )
 
             # Power selector (always visible) — pre-fill from stored config
             stored_power = stored.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
@@ -323,19 +356,26 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema({
-                vol.Required(CONF_MOOD_NAME, default=self.current_mood_name): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_MOOD_NAME, default=self.current_mood_name
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                }
+            ),
             errors=errors,
             last_step=False,
         )
 
+
 class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
     """Handles the options flow for MoodLights."""
 
-    async def async_step_init(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+    async def async_step_init(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle options flow - show about."""
         return self.async_show_form(
             step_id="about",
@@ -343,7 +383,9 @@ class MoodLightsOptionsFlowHandler(config_entries.OptionsFlow):
             last_step=True,
         )
 
-    async def async_step_about(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+    async def async_step_about(
+        self, user_input: dict | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle about step."""
         return self.async_show_form(
             step_id="about",
