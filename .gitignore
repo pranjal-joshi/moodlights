@@ -138,3 +138,6 @@ Thumbs.db
 *.yaml.original
 config/entry*.json
 .storage/
+
+# Release artifacts
+*.zip
