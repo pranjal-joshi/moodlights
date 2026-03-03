@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
-import re
 from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_RECONFIGURE
 from homeassistant.core import callback
@@ -135,32 +134,33 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         })
 
     async def async_step_configure_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
-        """Configure all lights — each light in its own collapsible section."""
+        """Configure all lights — optional fields are left blank if not applied."""
         if user_input is not None:
             light_configs = {}
 
             for entity_id in self.selected_lights:
                 config = {}
-                safe_name = self._get_safe_name(entity_id)
 
-                # user_input is nested: user_input[safe_name][field]
-                section_data = user_input.get(safe_name, {})
+                light_state = self.hass.states.get(entity_id)
+                light_name = light_state.name if light_state else entity_id
+                safe_name = self._get_safe_name(light_name)
 
                 # Power (always present)
-                config[CONF_LIGHT_POWER] = section_data.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+                power_key = f"{safe_name}_power"
+                config[CONF_LIGHT_POWER] = user_input.get(power_key, LIGHT_POWER_DONT_CHANGE)
 
                 # Brightness — only save if user provided a value
-                brightness_value = section_data.get(CONF_LIGHT_BRIGHTNESS)
+                brightness_value = user_input.get(f"{safe_name}_brightness")
                 if brightness_value is not None:
                     config[CONF_LIGHT_BRIGHTNESS] = int(brightness_value)
 
                 # Colour Temperature — only save if user provided a value
-                colortemp_value = section_data.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
+                colortemp_value = user_input.get(f"{safe_name}_colortemp")
                 if colortemp_value is not None:
                     config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
 
                 # RGB Color — only save if user provided a value
-                rgb_value = section_data.get(CONF_LIGHT_RGB_COLOR)
+                rgb_value = user_input.get(f"{safe_name}_rgb")
                 if rgb_value is not None:
                     config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
 
@@ -200,12 +200,13 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if moods:
                 existing_light_config = moods[0].get(CONF_LIGHT_CONFIG, {})
 
-        # Build one collapsible section per light
-        sections = {}
+        # Build schema — optional fields have no default (renders blank); pre-fill from existing data on reconfigure
+        schema = {}
 
         for entity_id in self.selected_lights:
             light_state = self.hass.states.get(entity_id)
-            safe_name = self._get_safe_name(entity_id)  # stable: based on entity_id, not display name
+            light_name = light_state.name if light_state else entity_id
+            safe_name = self._get_safe_name(light_name)
             supported_modes = light_state.attributes.get("supported_color_modes", []) if light_state else []
             stored = existing_light_config.get(entity_id, {})
 
@@ -220,19 +221,18 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN) if light_state else MIN_COLOR_TEMP_KELVIN
             max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN) if light_state else MAX_COLOR_TEMP_KELVIN
 
-            # Build schema for this light's section
-            section_schema: dict = {}
-
             # Power selector (always visible) — pre-fill from stored config
             stored_power = stored.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
-            section_schema[vol.Required(CONF_LIGHT_POWER, default=stored_power)] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        {"value": LIGHT_POWER_ON, "label": "Turn On"},
-                        {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
-                        {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
-                    ],
-                    mode=selector.SelectSelectorMode.DROPDOWN,
+            schema[vol.Required(f"{safe_name}_power", default=stored_power)] = (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": LIGHT_POWER_ON, "label": "Turn On"},
+                            {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
+                            {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
                 )
             )
 
@@ -240,11 +240,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if has_brightness:
                 stored_brightness = stored.get(CONF_LIGHT_BRIGHTNESS)
                 brightness_key = (
-                    vol.Optional(CONF_LIGHT_BRIGHTNESS, default=stored_brightness)
+                    vol.Optional(f"{safe_name}_brightness", default=stored_brightness)
                     if stored_brightness is not None
-                    else vol.Optional(CONF_LIGHT_BRIGHTNESS)
+                    else vol.Optional(f"{safe_name}_brightness")
                 )
-                section_schema[brightness_key] = selector.NumberSelector(
+                schema[brightness_key] = selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=MIN_BRIGHTNESS,
                         max=MAX_BRIGHTNESS,
@@ -258,11 +258,11 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if has_color_temp:
                 stored_colortemp = stored.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
                 colortemp_key = (
-                    vol.Optional(CONF_LIGHT_COLOR_TEMP_KELVIN, default=stored_colortemp)
+                    vol.Optional(f"{safe_name}_colortemp", default=stored_colortemp)
                     if stored_colortemp is not None
-                    else vol.Optional(CONF_LIGHT_COLOR_TEMP_KELVIN)
+                    else vol.Optional(f"{safe_name}_colortemp")
                 )
-                section_schema[colortemp_key] = selector.NumberSelector(
+                schema[colortemp_key] = selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=min_kelvin,
                         max=max_kelvin,
@@ -276,29 +276,21 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if has_rgb:
                 stored_rgb = stored.get(CONF_LIGHT_RGB_COLOR)
                 rgb_key = (
-                    vol.Optional(CONF_LIGHT_RGB_COLOR, default=stored_rgb)
+                    vol.Optional(f"{safe_name}_rgb", default=stored_rgb)
                     if stored_rgb is not None
-                    else vol.Optional(CONF_LIGHT_RGB_COLOR)
+                    else vol.Optional(f"{safe_name}_rgb")
                 )
-                section_schema[rgb_key] = selector.ColorRGBSelector()
-
-            # Wrap this light's fields in a collapsible section
-            sections[vol.Required(safe_name)] = selector.SectionSelector(
-                selector.SectionSelectorConfig(
-                    schema=vol.Schema(section_schema),
-                    collapsed=False,
-                )
-            )
+                schema[rgb_key] = selector.ColorRGBSelector()
 
         return self.async_show_form(
             step_id="configure_lights",
-            data_schema=vol.Schema(sections),
+            data_schema=vol.Schema(schema),
             last_step=True,
         )
 
     def _get_safe_name(self, name: str) -> str:
         """Convert a name to a safe key format."""
-        return re.sub(r"[^a-z0-9_]", "_", name.lower())
+        return name.replace(" ", "_").replace(".", "_").replace("-", "_").lower()
 
     async def async_step_reconfigure(
         self, user_input: dict | None = None
