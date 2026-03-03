@@ -1,6 +1,6 @@
 # MoodLights
 
-![Icon](logo@2x.png)
+![Icon](icons/logo@2x.png)
 
 Easy mood-based light management for Home Assistant.
 
