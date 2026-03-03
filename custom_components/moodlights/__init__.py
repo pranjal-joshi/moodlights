@@ -1,5 +1,4 @@
 """MoodLights - Easy mood-based light management for Home Assistant."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

@@ -1,5 +1,4 @@
 """Mood management for MoodLights."""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,16 +37,16 @@ class MoodConfig:
 class MoodManager:
     """Manages all moods and their operations."""
 
-    def __init__(self, hass: HomeAssistant, options: dict | None = None) -> None:
+    def __init__(
+        self, hass: HomeAssistant, options: dict | None = None
+    ) -> None:
         """Initialize the mood manager."""
         self._hass = hass
         self._moods: dict[str, MoodConfig] = {}
 
         opts = options or {}
         max_states = opts.get("max_states") if opts else DEFAULT_MAX_STATES
-        self._state_manager = StateManager(
-            hass, max_states=max_states or DEFAULT_MAX_STATES
-        )
+        self._state_manager = StateManager(hass, max_states=max_states or DEFAULT_MAX_STATES)
 
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""
@@ -123,9 +122,7 @@ class MoodManager:
 
             if power == LIGHT_POWER_OFF:
                 tasks.append(
-                    self._hass.services.async_call(
-                        "light", "turn_off", {"entity_id": entity_id}
-                    )
+                    self._hass.services.async_call("light", "turn_off", {"entity_id": entity_id})
                 )
             elif power == LIGHT_POWER_ON:
                 service_data: dict[str, Any] = {"entity_id": entity_id}

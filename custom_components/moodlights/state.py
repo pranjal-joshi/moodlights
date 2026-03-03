@@ -1,5 +1,4 @@
 """State management for MoodLights."""
-
 from __future__ import annotations
 
 import asyncio
@@ -44,9 +43,7 @@ class MoodState:
 class StateManager:
     """Manages saved states for mood restoration."""
 
-    def __init__(
-        self, hass: HomeAssistant, max_states: int = DEFAULT_MAX_STATES
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, max_states: int = DEFAULT_MAX_STATES) -> None:
         """Initialize the state manager."""
         self._hass = hass
         self._max_states = max_states
