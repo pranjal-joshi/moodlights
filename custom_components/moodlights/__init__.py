@@ -14,6 +14,10 @@ if TYPE_CHECKING:
     from .config_flow import MoodLightsConfigEntry
     from .manager import MoodManager
 
+from homeassistant.helpers import config_validation as cv
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 PLATFORMS = [Platform.BUTTON]
 
 ATTR_MOOD_NAME = "mood_name"
