@@ -16,9 +16,6 @@ from .const import (
     CONF_LIGHT_RGB_COLOR,
     CONF_LIGHTS,
     CONF_MOOD_NAME,
-    LIGHT_POWER_DONT_CHANGE,
-    LIGHT_POWER_OFF,
-    LIGHT_POWER_ON,
     LOGGER,
 )
 from .state import DEFAULT_MAX_STATES, StateManager
@@ -118,13 +115,13 @@ class MoodManager:
         tasks = []
 
         for entity_id, config in light_config.items():
-            power = config.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+            power = config.get(CONF_LIGHT_POWER, True)
 
-            if power == LIGHT_POWER_OFF:
+            if power is False:
                 tasks.append(
                     self._hass.services.async_call("light", "turn_off", {"entity_id": entity_id})
                 )
-            elif power == LIGHT_POWER_ON:
+            else:
                 service_data: dict[str, Any] = {"entity_id": entity_id}
 
                 brightness = config.get(CONF_LIGHT_BRIGHTNESS)

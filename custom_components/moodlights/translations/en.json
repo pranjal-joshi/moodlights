@@ -18,7 +18,7 @@
       },
       "configure_lights": {
         "title": "Configure Lights",
-        "description": "Set the desired state for each light. Leave brightness, colour temperature, or RGB colour blank to skip that setting when the mood is activated."
+        "description": "Toggle each light on or off, then optionally set brightness, colour temperature, or RGB colour. To leave a light unaffected, remove it from the previous step."
       },
       "reconfigure": {
         "title": "Reconfigure Mood",

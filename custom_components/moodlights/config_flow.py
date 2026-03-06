@@ -18,9 +18,6 @@ from .const import (
     CONF_LIGHTS,
     CONF_MOOD_NAME,
     DOMAIN,
-    LIGHT_POWER_DONT_CHANGE,
-    LIGHT_POWER_OFF,
-    LIGHT_POWER_ON,
     MAX_BRIGHTNESS,
     MAX_COLOR_TEMP_KELVIN,
     MIN_BRIGHTNESS,
@@ -147,7 +144,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Power (always present)
                 power_key = f"{safe_name}_power"
-                config[CONF_LIGHT_POWER] = user_input.get(power_key, LIGHT_POWER_DONT_CHANGE)
+                config[CONF_LIGHT_POWER] = user_input.get(power_key, True)
 
                 # Brightness — only save if user provided a value
                 brightness_value = user_input.get(f"{safe_name}_brightness")
@@ -221,19 +218,10 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             min_kelvin = light_state.attributes.get("min_color_temp_kelvin", MIN_COLOR_TEMP_KELVIN) if light_state else MIN_COLOR_TEMP_KELVIN
             max_kelvin = light_state.attributes.get("max_color_temp_kelvin", MAX_COLOR_TEMP_KELVIN) if light_state else MAX_COLOR_TEMP_KELVIN
 
-            # Power selector (always visible) — pre-fill from stored config
-            stored_power = stored.get(CONF_LIGHT_POWER, LIGHT_POWER_DONT_CHANGE)
+            # Power toggle (always visible) — default On; pre-fill from stored config
+            stored_power = stored.get(CONF_LIGHT_POWER, True)
             schema[vol.Required(f"{safe_name}_power", default=stored_power)] = (
-                selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": LIGHT_POWER_ON, "label": "Turn On"},
-                            {"value": LIGHT_POWER_OFF, "label": "Turn Off"},
-                            {"value": LIGHT_POWER_DONT_CHANGE, "label": "Don't Change"},
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
-                )
+                selector.BooleanSelector()
             )
 
             # Brightness — plain optional, no default; pre-fill if stored
