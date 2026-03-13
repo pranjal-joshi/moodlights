@@ -14,6 +14,7 @@ CONF_LIGHT_POWER = "power"
 CONF_LIGHT_BRIGHTNESS = "brightness"
 CONF_LIGHT_COLOR_TEMP_KELVIN = "color_temp_kelvin"
 CONF_LIGHT_RGB_COLOR = "rgb_color"
+CONF_LIGHT_EFFECT = "effect"
 
 LIGHT_POWER_ON = True
 LIGHT_POWER_OFF = False

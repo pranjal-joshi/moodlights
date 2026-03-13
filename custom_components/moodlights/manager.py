@@ -12,6 +12,7 @@ from .const import (
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_CONFIG,
+    CONF_LIGHT_EFFECT,
     CONF_LIGHT_POWER,
     CONF_LIGHT_RGB_COLOR,
     CONF_LIGHTS,
@@ -128,14 +129,19 @@ class MoodManager:
                 if brightness is not None:
                     service_data["brightness_pct"] = brightness
 
-                # Colour temperature takes priority over RGB
-                color_temp_kelvin = config.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
-                rgb_color = config.get(CONF_LIGHT_RGB_COLOR)
+                effect = config.get(CONF_LIGHT_EFFECT)
+                if effect is not None:
+                    # Effect takes priority — apply it and skip colour settings
+                    service_data["effect"] = effect
+                else:
+                    # Colour temperature takes priority over RGB
+                    color_temp_kelvin = config.get(CONF_LIGHT_COLOR_TEMP_KELVIN)
+                    rgb_color = config.get(CONF_LIGHT_RGB_COLOR)
 
-                if color_temp_kelvin is not None:
-                    service_data["color_temp_kelvin"] = color_temp_kelvin
-                elif rgb_color is not None:
-                    service_data["rgb_color"] = rgb_color
+                    if color_temp_kelvin is not None:
+                        service_data["color_temp_kelvin"] = color_temp_kelvin
+                    elif rgb_color is not None:
+                        service_data["rgb_color"] = rgb_color
 
                 tasks.append(
                     self._hass.services.async_call("light", "turn_on", service_data)

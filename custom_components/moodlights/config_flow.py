@@ -13,6 +13,7 @@ from .const import (
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_CONFIG,
+    CONF_LIGHT_EFFECT,
     CONF_LIGHT_POWER,
     CONF_LIGHT_RGB_COLOR,
     CONF_LIGHTS,
@@ -151,15 +152,23 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if brightness_value is not None:
                     config[CONF_LIGHT_BRIGHTNESS] = int(brightness_value)
 
-                # Colour Temperature — only save if user provided a value
-                colortemp_value = user_input.get(f"{safe_name}_colortemp")
-                if colortemp_value is not None:
-                    config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
+                # Effect — only save if user provided a value and didn't choose "None"
+                effect_value = user_input.get(f"{safe_name}_effect")
+                has_effect = effect_value is not None and effect_value != "None"
+                if has_effect:
+                    config[CONF_LIGHT_EFFECT] = effect_value
 
-                # RGB Color — only save if user provided a value
-                rgb_value = user_input.get(f"{safe_name}_rgb")
-                if rgb_value is not None:
-                    config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
+                # Colour Temperature and RGB — skipped if an effect is selected (effect takes priority)
+                if not has_effect:
+                    # Colour Temperature — only save if user provided a value
+                    colortemp_value = user_input.get(f"{safe_name}_colortemp")
+                    if colortemp_value is not None:
+                        config[CONF_LIGHT_COLOR_TEMP_KELVIN] = int(colortemp_value)
+
+                    # RGB Color — only save if user provided a value
+                    rgb_value = user_input.get(f"{safe_name}_rgb")
+                    if rgb_value is not None:
+                        config[CONF_LIGHT_RGB_COLOR] = list(rgb_value)
 
                 light_configs[entity_id] = config
 
@@ -269,6 +278,23 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     else vol.Optional(f"{safe_name}_rgb")
                 )
                 schema[rgb_key] = selector.ColorRGBSelector()
+
+            # Effect — shown only if the light exposes an effect_list; pre-fill if stored
+            effect_list = light_state.attributes.get("effect_list", []) if light_state else []
+            if effect_list:
+                stored_effect = stored.get(CONF_LIGHT_EFFECT)
+                effect_options = ["None"] + list(effect_list)
+                effect_key = (
+                    vol.Optional(f"{safe_name}_effect", default=stored_effect)
+                    if stored_effect is not None
+                    else vol.Optional(f"{safe_name}_effect")
+                )
+                schema[effect_key] = selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=effect_options,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                )
 
         return self.async_show_form(
             step_id="configure_lights",

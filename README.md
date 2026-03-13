@@ -108,3 +108,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 *If you find this integration useful, please consider giving it a star on GitHub!*
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=pranjal-joshi/moodlights&type=date&legend=top-left)](https://www.star-history.com/?repos=pranjal-joshi%2Fmoodlights&type=date&legend=top-left)
