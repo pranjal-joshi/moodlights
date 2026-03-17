@@ -15,6 +15,13 @@ Easy mood-based light management for Home Assistant.
 - **Per-Light Settings**: Configure brightness, color temperature, and RGB color for each light
 - **State Save & Restore**: Automatically saves light states before mood changes, allows easy rollback
 - **Callable Services**: Integrate with automations via Home Assistant services
+- **Mood Active Sensor**: Binary sensor per mood that reflects whether lights currently match the mood's configured target
+
+## Changelog
+
+### v1.1.4
+
+- **Mood Active Binary Sensor**: Each mood now exposes a binary sensor (`binary_sensor.<mood_name>_active`) that is **ON** when all lights in the mood currently match its configured target values, and **OFF** when any light has drifted (manually changed, turned off unexpectedly, or unavailable). Updates in real-time via Home Assistant state change events — no polling. Includes `mismatched_lights` and `configured_lights` as extra state attributes, making it easy to build automations that react to manual light overrides.
 
 ## Installation
 
