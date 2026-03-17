@@ -18,7 +18,7 @@ from homeassistant.helpers import config_validation as cv
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = [Platform.BUTTON]
+PLATFORMS = [Platform.BUTTON, Platform.BINARY_SENSOR]
 
 ATTR_MOOD_NAME = "mood_name"
 ATTR_PRESET_NAME = "preset_name"

@@ -33,6 +33,17 @@
       "mood_name_exists": "A mood with this name already exists. Please choose a different name."
     }
   },
+  "entity": {
+    "binary_sensor": {
+      "mood_active": {
+        "name": "Active",
+        "state": {
+          "on": "Active",
+          "off": "Inactive"
+        }
+      }
+    }
+  },
   "services": {
     "activate_mood": {
       "name": "Activate Mood",
