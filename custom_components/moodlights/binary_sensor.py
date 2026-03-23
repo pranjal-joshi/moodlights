@@ -10,9 +10,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
+    ATTR_CONFIGURED_COVERS,
     ATTR_CONFIGURED_LIGHTS,
+    ATTR_MISMATCHED_COVERS,
     ATTR_MISMATCHED_LIGHTS,
     ATTR_MOOD_NAME,
+    CONF_COVER_POSITION,
+    CONF_COVER_TILT_POSITION,
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_EFFECT,
@@ -24,6 +28,9 @@ from .manager import MoodConfig, MoodManager
 
 if TYPE_CHECKING:
     from .config_flow import MoodLightsConfigEntry
+
+# Tolerance for cover position matching (motor imprecision)
+_COVER_POSITION_TOLERANCE = 2
 
 
 async def async_setup_entry(
@@ -48,7 +55,7 @@ def _brightness_pct_to_raw(pct: int) -> int:
 
 
 class MoodActiveBinarySensor(BinarySensorEntity):
-    """Binary sensor that is ON when all lights match the mood's configured target."""
+    """Binary sensor that is ON when all lights and covers match the mood's configured target."""
 
     _attr_has_entity_name = True
     _attr_name = "Active"
@@ -66,12 +73,13 @@ class MoodActiveBinarySensor(BinarySensorEntity):
             model="Mood",
         )
         self._unsub_listeners: list = []
-        self._mismatched: list[str] = []
+        self._mismatched_lights: list[str] = []
+        self._mismatched_covers: list[str] = []
 
     @property
     def is_on(self) -> bool:
-        """Return True when all configured lights match their target state."""
-        return len(self._mismatched) == 0
+        """Return True when all configured lights and covers match their target state."""
+        return len(self._mismatched_lights) == 0 and len(self._mismatched_covers) == 0
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -79,12 +87,15 @@ class MoodActiveBinarySensor(BinarySensorEntity):
         return {
             ATTR_MOOD_NAME: self._config.name,
             ATTR_CONFIGURED_LIGHTS: list(self._config.light_config.keys()),
-            ATTR_MISMATCHED_LIGHTS: list(self._mismatched),
+            ATTR_MISMATCHED_LIGHTS: list(self._mismatched_lights),
+            ATTR_CONFIGURED_COVERS: list(self._config.cover_config.keys()),
+            ATTR_MISMATCHED_COVERS: list(self._mismatched_covers),
         }
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to state change events when entity is added."""
         light_entities = list(self._config.light_config.keys())
+        cover_entities = list(self._config.cover_config.keys())
 
         if light_entities:
             unsub = async_track_state_change_event(
@@ -94,8 +105,16 @@ class MoodActiveBinarySensor(BinarySensorEntity):
             )
             self._unsub_listeners.append(unsub)
 
+        if cover_entities:
+            unsub = async_track_state_change_event(
+                self.hass,
+                cover_entities,
+                self._handle_state_change,
+            )
+            self._unsub_listeners.append(unsub)
+
         # Compute initial state
-        self._mismatched = self._compute_mismatched()
+        self._mismatched_lights, self._mismatched_covers = self._compute_mismatched()
 
     async def async_will_remove_from_hass(self) -> None:
         """Unsubscribe all listeners when entity is removed."""
@@ -105,19 +124,24 @@ class MoodActiveBinarySensor(BinarySensorEntity):
 
     @callback
     def _handle_state_change(self, event: Event) -> None:  # noqa: ARG002
-        """Handle a state change event for any light in this mood."""
-        self._mismatched = self._compute_mismatched()
+        """Handle a state change event for any light or cover in this mood."""
+        self._mismatched_lights, self._mismatched_covers = self._compute_mismatched()
         self.async_write_ha_state()
 
-    def _compute_mismatched(self) -> list[str]:
-        """Return list of entity_ids whose current state does not match the mood config."""
-        mismatched: list[str] = []
+    def _compute_mismatched(self) -> tuple[list[str], list[str]]:
+        """Return (mismatched_lights, mismatched_covers) entity_id lists."""
+        mismatched_lights: list[str] = []
+        mismatched_covers: list[str] = []
 
         for entity_id, config in self._config.light_config.items():
             if not self._is_light_matching(entity_id, config):
-                mismatched.append(entity_id)
+                mismatched_lights.append(entity_id)
 
-        return mismatched
+        for entity_id, config in self._config.cover_config.items():
+            if not self._is_cover_matching(entity_id, config):
+                mismatched_covers.append(entity_id)
+
+        return mismatched_lights, mismatched_covers
 
     def _is_light_matching(self, entity_id: str, config: dict) -> bool:
         """Return True if the light's current state matches the mood config exactly.
@@ -175,5 +199,38 @@ class MoodActiveBinarySensor(BinarySensorEntity):
                     return False
                 if tuple(current_rgb) != tuple(rgb_color):
                     return False
+
+        return True
+
+    def _is_cover_matching(self, entity_id: str, config: dict) -> bool:
+        """Return True if the cover's current state matches the mood config.
+
+        Position and tilt are compared with a tolerance of ±2% to account for
+        motor imprecision. Only attributes present in the config are checked.
+        """
+        state = self.hass.states.get(entity_id)
+
+        if state is None or state.state in ("unavailable", "unknown"):
+            return False
+
+        attrs = state.attributes
+
+        # --- Position ---
+        target_position = config.get(CONF_COVER_POSITION)
+        if target_position is not None:
+            current_position = attrs.get("current_position")
+            if current_position is None:
+                return False
+            if abs(current_position - target_position) > _COVER_POSITION_TOLERANCE:
+                return False
+
+        # --- Tilt position ---
+        target_tilt = config.get(CONF_COVER_TILT_POSITION)
+        if target_tilt is not None:
+            current_tilt = attrs.get("current_tilt_position")
+            if current_tilt is None:
+                return False
+            if abs(current_tilt - target_tilt) > _COVER_POSITION_TOLERANCE:
+                return False
 
         return True

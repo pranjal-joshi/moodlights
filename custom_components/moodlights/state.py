@@ -31,12 +31,24 @@ class LightState:
 
 
 @dataclass
+class CoverState:
+    """Represents a saved cover state."""
+
+    entity_id: str
+    state: str
+    current_position: int | None
+    current_tilt_position: int | None
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
 class MoodState:
     """Represents a saved mood state."""
 
     mood_id: str
     preset_name: str = ""
     light_states: list[LightState] = field(default_factory=list)
+    cover_states: list[CoverState] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -55,12 +67,16 @@ class StateManager:
         mood_id: str,
         preset_name: str = "",
         light_entities: list[str] | None = None,
+        cover_entities: list[str] | None = None,
     ) -> MoodState | None:
-        """Save current state of lights before applying a mood."""
+        """Save current state of lights and covers before applying a mood."""
         if light_entities is None:
             light_entities = []
+        if cover_entities is None:
+            cover_entities = []
 
         light_states: list[LightState] = []
+        cover_states: list[CoverState] = []
 
         for entity_id in light_entities:
             state = self._hass.states.get(entity_id)
@@ -79,13 +95,27 @@ class StateManager:
             )
             light_states.append(light_state)
 
-        if not light_states:
+        for entity_id in cover_entities:
+            state = self._hass.states.get(entity_id)
+            if state is None:
+                continue
+
+            cover_state = CoverState(
+                entity_id=entity_id,
+                state=state.state,
+                current_position=state.attributes.get("current_position"),
+                current_tilt_position=state.attributes.get("current_tilt_position"),
+            )
+            cover_states.append(cover_state)
+
+        if not light_states and not cover_states:
             return None
 
         mood_state = MoodState(
             mood_id=mood_id,
             preset_name=preset_name,
             light_states=light_states,
+            cover_states=cover_states,
         )
 
         if mood_id not in self._states:
@@ -145,6 +175,41 @@ class StateManager:
                     service_data["effect"] = light_state.effect
 
             tasks.append(self._hass.services.async_call("light", service, service_data))
+
+        for cover_state in mood_state.cover_states:
+            if cover_state.current_position is not None:
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "set_cover_position",
+                        {"entity_id": cover_state.entity_id, "position": cover_state.current_position},
+                    )
+                )
+            elif cover_state.state == "closed":
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "close_cover",
+                        {"entity_id": cover_state.entity_id},
+                    )
+                )
+            else:
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "open_cover",
+                        {"entity_id": cover_state.entity_id},
+                    )
+                )
+
+            if cover_state.current_tilt_position is not None:
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "set_cover_tilt_position",
+                        {"entity_id": cover_state.entity_id, "tilt_position": cover_state.current_tilt_position},
+                    )
+                )
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

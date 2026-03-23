@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_COVER_CONFIG,
+    CONF_COVER_POSITION,
+    CONF_COVER_TILT_POSITION,
+    CONF_COVERS,
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_CONFIG,
@@ -30,6 +34,8 @@ class MoodConfig:
     name: str
     lights: list[str]
     light_config: dict
+    covers: list[str] = field(default_factory=list)
+    cover_config: dict = field(default_factory=dict)
 
 
 class MoodManager:
@@ -57,24 +63,28 @@ class MoodManager:
                 name=mood_data.get(CONF_MOOD_NAME, f"Mood {idx + 1}"),
                 lights=mood_data.get(CONF_LIGHTS, []),
                 light_config=mood_data.get(CONF_LIGHT_CONFIG, {}),
+                covers=mood_data.get(CONF_COVERS, []),
+                cover_config=mood_data.get(CONF_COVER_CONFIG, {}),
             )
             self._moods[mood_id] = mood_config
 
     async def activate_mood(self, mood_id: str, preset_name: str = "") -> bool:
-        """Activate a mood, saving current light states first."""
+        """Activate a mood, saving current light and cover states first."""
         mood_config = self._moods.get(mood_id)
         if not mood_config:
             return False
 
-        # Save current state before activating
+        # Save current state before activating (lights + covers atomically)
         self._state_manager.save_current_state(
             mood_id,
             preset_name=preset_name or mood_config.name,
             light_entities=mood_config.lights,
+            cover_entities=mood_config.covers,
         )
 
         # Apply the mood
         await self._apply_light_config(mood_config.light_config)
+        await self._apply_cover_config(mood_config.cover_config)
 
         return True
 
@@ -83,7 +93,7 @@ class MoodManager:
         return await self._state_manager.restore_previous(mood_id)
 
     async def save_state(self, mood_id: str, preset_name: str = "") -> bool:
-        """Manually save the current state of lights for a mood."""
+        """Manually save the current state of lights and covers for a mood."""
         mood_config = self._moods.get(mood_id)
         if not mood_config:
             return False
@@ -92,6 +102,7 @@ class MoodManager:
             mood_id,
             preset_name=preset_name,
             light_entities=mood_config.lights,
+            cover_entities=mood_config.covers,
         )
         return result is not None
 
@@ -145,6 +156,38 @@ class MoodManager:
 
                 tasks.append(
                     self._hass.services.async_call("light", "turn_on", service_data)
+                )
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _apply_cover_config(self, cover_config: dict) -> None:
+        """Apply cover configuration to all covers in parallel."""
+        if not cover_config:
+            return
+
+        tasks = []
+
+        for entity_id, config in cover_config.items():
+            position = config.get(CONF_COVER_POSITION)
+            tilt_position = config.get(CONF_COVER_TILT_POSITION)
+
+            if position is not None:
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "set_cover_position",
+                        {"entity_id": entity_id, "position": position},
+                    )
+                )
+
+            if tilt_position is not None:
+                tasks.append(
+                    self._hass.services.async_call(
+                        "cover",
+                        "set_cover_tilt_position",
+                        {"entity_id": entity_id, "tilt_position": tilt_position},
+                    )
                 )
 
         if tasks:

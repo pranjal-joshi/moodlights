@@ -20,9 +20,20 @@
         "title": "Configure Lights",
         "description": "Toggle each light on or off, then optionally set brightness, colour temperature, RGB colour, or effect. To leave a light unaffected, remove it from the previous step."
       },
+      "select_covers": {
+        "title": "Choose Covers (Optional)",
+        "description": "Optionally select blinds, curtains, or shades to control with this mood. Leave empty if you don't need cover control.",
+        "data": {
+          "covers": "Cover Entities"
+        }
+      },
+      "configure_covers": {
+        "title": "Configure Covers",
+        "description": "Set the target position (0 = fully closed, 100 = fully open) and tilt position for each selected cover. Only capabilities supported by each cover are shown."
+      },
       "reconfigure": {
         "title": "Reconfigure Mood",
-        "description": "Update your mood name, lights, and light settings.",
+        "description": "Update your mood name, lights, covers, and their settings.",
         "data": {
           "name": "Mood Name"
         }
@@ -47,7 +58,7 @@
   "services": {
     "activate_mood": {
       "name": "Activate Mood",
-      "description": "Activate a mood, saving current light states first.",
+      "description": "Activate a mood, saving current light and cover states first.",
       "fields": {
         "mood_name": {
           "name": "Mood Name",
@@ -61,7 +72,7 @@
     },
     "restore_previous": {
       "name": "Restore Previous",
-      "description": "Restore the lights for a mood to their last saved state.",
+      "description": "Restore the lights and covers for a mood to their last saved state.",
       "fields": {
         "mood_name": {
           "name": "Mood Name",
@@ -71,7 +82,7 @@
     },
     "save_state": {
       "name": "Save State",
-      "description": "Manually snapshot the current state of a mood's lights.",
+      "description": "Manually snapshot the current state of a mood's lights and covers.",
       "fields": {
         "mood_name": {
           "name": "Mood Name",

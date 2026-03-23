@@ -10,6 +10,10 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_COVER_CONFIG,
+    CONF_COVER_POSITION,
+    CONF_COVER_TILT_POSITION,
+    CONF_COVERS,
     CONF_LIGHT_BRIGHTNESS,
     CONF_LIGHT_COLOR_TEMP_KELVIN,
     CONF_LIGHT_CONFIG,
@@ -18,6 +22,8 @@ from .const import (
     CONF_LIGHT_RGB_COLOR,
     CONF_LIGHTS,
     CONF_MOOD_NAME,
+    COVER_SUPPORT_SET_POSITION,
+    COVER_SUPPORT_SET_TILT_POSITION,
     DOMAIN,
     MAX_BRIGHTNESS,
     MAX_COLOR_TEMP_KELVIN,
@@ -41,6 +47,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.moods: list[dict] = []
         self.current_mood_name: str = ""
         self.selected_lights: list[str] = []
+        self.selected_covers: list[str] = []
 
     @staticmethod
     @callback
@@ -93,6 +100,10 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, _import_info: dict | None) -> config_entries.ConfigFlowResult:
         """Handle import from YAML."""
         return await self.async_step_user(None)
+
+    # ------------------------------------------------------------------
+    # Lights steps
+    # ------------------------------------------------------------------
 
     async def async_step_select_lights(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Select light entities for this mood."""
@@ -172,31 +183,9 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 light_configs[entity_id] = config
 
-            mood_data = {
-                CONF_MOOD_NAME: self.current_mood_name,
-                CONF_LIGHTS: self.selected_lights,
-                CONF_LIGHT_CONFIG: light_configs,
-            }
-
-            self.moods.append(mood_data)
-
-            # In reconfigure: update + reload the existing entry
-            if self.source == SOURCE_RECONFIGURE:
-                config_entry = self._get_reconfigure_entry()
-                return self.async_update_reload_and_abort(
-                    config_entry,
-                    title=self.current_mood_name,
-                    data={"moods": self.moods},
-                )
-
-            # Normal setup: set unique_id and create a new entry
-            await self.async_set_unique_id(self._get_safe_name(self.current_mood_name))
-            self._abort_if_unique_id_configured()
-
-            return self.async_create_entry(
-                title=self.current_mood_name,
-                data={"moods": self.moods},
-            )
+            # Store light config on self; continue to cover selection
+            self._pending_light_configs = light_configs
+            return await self.async_step_select_covers()
 
         # Load existing light_config for pre-filling during reconfigure
         existing_light_config: dict = {}
@@ -299,8 +288,181 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="configure_lights",
             data_schema=vol.Schema(schema),
+            last_step=False,
+        )
+
+    # ------------------------------------------------------------------
+    # Cover steps
+    # ------------------------------------------------------------------
+
+    async def async_step_select_covers(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+        """Select cover entities for this mood (optional)."""
+        if user_input is not None:
+            # Covers are optional — empty list is valid
+            self.selected_covers = user_input.get(CONF_COVERS, [])
+            return await self.async_step_configure_covers()
+
+        # Pre-fill from existing config on reconfigure
+        default_covers: list[str] = []
+        if self.source == SOURCE_RECONFIGURE:
+            reconfigure_entry = self._get_reconfigure_entry()
+            moods = reconfigure_entry.data.get("moods", [])
+            if moods:
+                default_covers = moods[0].get(CONF_COVERS, [])
+        self.selected_covers = default_covers
+
+        covers_key = (
+            vol.Optional(CONF_COVERS, default=default_covers)
+            if default_covers
+            else vol.Optional(CONF_COVERS)
+        )
+
+        return self.async_show_form(
+            step_id="select_covers",
+            data_schema=vol.Schema({
+                covers_key: selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        multiple=True,
+                        filter=selector.EntityFilterSelectorConfig(domain="cover"),
+                    )
+                ),
+            }),
+            last_step=False,
+        )
+
+    async def async_step_configure_covers(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
+        """Configure cover positions dynamically based on each cover's capabilities."""
+        if user_input is not None:
+            cover_configs: dict = {}
+
+            for entity_id in self.selected_covers:
+                config: dict = {}
+                cover_state = self.hass.states.get(entity_id)
+                cover_name = cover_state.name if cover_state else entity_id
+                safe_name = self._get_safe_name(cover_name)
+
+                supported_features = (
+                    cover_state.attributes.get("supported_features", 0) if cover_state else 0
+                )
+                has_position = bool(supported_features & COVER_SUPPORT_SET_POSITION)
+                has_tilt = bool(supported_features & COVER_SUPPORT_SET_TILT_POSITION)
+
+                if has_position:
+                    pos_value = user_input.get(f"{safe_name}_position")
+                    if pos_value is not None:
+                        config[CONF_COVER_POSITION] = int(pos_value)
+
+                if has_tilt:
+                    tilt_value = user_input.get(f"{safe_name}_tilt_position")
+                    if tilt_value is not None:
+                        config[CONF_COVER_TILT_POSITION] = int(tilt_value)
+
+                if config:
+                    cover_configs[entity_id] = config
+
+            # Assemble final mood_data and finish
+            mood_data = {
+                CONF_MOOD_NAME: self.current_mood_name,
+                CONF_LIGHTS: self.selected_lights,
+                CONF_LIGHT_CONFIG: self._pending_light_configs,
+                CONF_COVERS: self.selected_covers,
+                CONF_COVER_CONFIG: cover_configs,
+            }
+
+            self.moods.append(mood_data)
+
+            # In reconfigure: update + reload the existing entry
+            if self.source == SOURCE_RECONFIGURE:
+                config_entry = self._get_reconfigure_entry()
+                return self.async_update_reload_and_abort(
+                    config_entry,
+                    title=self.current_mood_name,
+                    data={"moods": self.moods},
+                )
+
+            # Normal setup: set unique_id and create a new entry
+            await self.async_set_unique_id(self._get_safe_name(self.current_mood_name))
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(
+                title=self.current_mood_name,
+                data={"moods": self.moods},
+            )
+
+        # If no covers selected, skip straight to finish without showing a form
+        if not self.selected_covers:
+            return await self.async_step_configure_covers(user_input={})
+
+        # Load existing cover_config for pre-filling during reconfigure
+        existing_cover_config: dict = {}
+        if self.source == SOURCE_RECONFIGURE:
+            reconfigure_entry = self._get_reconfigure_entry()
+            moods = reconfigure_entry.data.get("moods", [])
+            if moods:
+                existing_cover_config = moods[0].get(CONF_COVER_CONFIG, {})
+
+        schema: dict = {}
+
+        for entity_id in self.selected_covers:
+            cover_state = self.hass.states.get(entity_id)
+            cover_name = cover_state.name if cover_state else entity_id
+            safe_name = self._get_safe_name(cover_name)
+            supported_features = (
+                cover_state.attributes.get("supported_features", 0) if cover_state else 0
+            )
+            stored = existing_cover_config.get(entity_id, {})
+
+            has_position = bool(supported_features & COVER_SUPPORT_SET_POSITION)
+            has_tilt = bool(supported_features & COVER_SUPPORT_SET_TILT_POSITION)
+
+            if has_position:
+                stored_pos = stored.get(CONF_COVER_POSITION)
+                pos_key = (
+                    vol.Optional(f"{safe_name}_position", default=stored_pos)
+                    if stored_pos is not None
+                    else vol.Optional(f"{safe_name}_position")
+                )
+                schema[pos_key] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=selector.NumberSelectorMode.SLIDER,
+                    )
+                )
+
+            if has_tilt:
+                stored_tilt = stored.get(CONF_COVER_TILT_POSITION)
+                tilt_key = (
+                    vol.Optional(f"{safe_name}_tilt_position", default=stored_tilt)
+                    if stored_tilt is not None
+                    else vol.Optional(f"{safe_name}_tilt_position")
+                )
+                schema[tilt_key] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=selector.NumberSelectorMode.SLIDER,
+                    )
+                )
+
+        # If no schema fields were generated (covers have no configurable capabilities),
+        # skip the form and finalise with empty configs
+        if not schema:
+            return await self.async_step_configure_covers(user_input={})
+
+        return self.async_show_form(
+            step_id="configure_covers",
+            data_schema=vol.Schema(schema),
             last_step=True,
         )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _get_safe_name(self, name: str) -> str:
         """Convert a name to a safe key format."""
@@ -317,6 +479,7 @@ class MoodLightsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Pre-fill instance state from current entry
         self.current_mood_name = current_mood.get(CONF_MOOD_NAME, "")
         self.selected_lights = current_mood.get(CONF_LIGHTS, [])
+        self.selected_covers = current_mood.get(CONF_COVERS, [])
         self.moods = []
 
         errors: dict[str, str] = {}

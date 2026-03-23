@@ -27,3 +27,17 @@ MAX_COLOR_TEMP_KELVIN = 65000
 ATTR_MISMATCHED_LIGHTS = "mismatched_lights"
 ATTR_CONFIGURED_LIGHTS = "configured_lights"
 ATTR_MOOD_NAME = "mood_name"
+
+# Cover config keys
+CONF_COVERS = "covers"
+CONF_COVER_CONFIG = "cover_config"
+CONF_COVER_POSITION = "position"
+CONF_COVER_TILT_POSITION = "tilt_position"
+
+# Cover feature flag bit values (from homeassistant.components.cover.CoverEntityFeature)
+COVER_SUPPORT_SET_POSITION = 4
+COVER_SUPPORT_SET_TILT_POSITION = 128
+
+# Cover-related extra state attribute keys
+ATTR_CONFIGURED_COVERS = "configured_covers"
+ATTR_MISMATCHED_COVERS = "mismatched_covers"
