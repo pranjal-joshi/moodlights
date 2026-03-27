@@ -4,16 +4,17 @@
 
 Easy mood-based light management for Home Assistant.
 
-[![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights)](https://github.com/pranjal-joshi/moodlights/releases)
-[![HACS Installations](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=HACS%20Installations&query=$count&url=https://api.github.com/repos/pranjal-joshi/moodlights)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pranjal-joshi&repository=moodlights)
-[![License](https://img.shields.io/github/license/pranjal-joshi/moodlights)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
+[![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights?style=for-the-badge&logo=github&logoColor=%2341BDF5&label=RELEASE&color=%2341BDF5)](https://github.com/pranjal-joshi/moodlights/releases)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/pranjal-joshi/moodlights/total?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=%2341BDF5&label=HACS%20DOWNLOADS&color=%2341BDF5)
+[![License](https://img.shields.io/github/license/pranjal-joshi/moodlights?style=for-the-badge&logo=scroll&logoColor=%2341BDF5&label=LICENSE&color=%2341BDF5)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12+-41BDF5?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
 ## Features
 
 - **Mood Entities**: Create mood configurations with Activate and Revert buttons
 - **Per-Light Settings**: Configure brightness, color temperature, and RGB color for each light
-- **State Save & Restore**: Automatically saves light states before mood changes, allows easy rollback
+- **Cover Entity Support**: Control blinds, curtains, and shades with position and tilt support
+- **State Save & Restore**: Automatically saves light and cover states before mood changes, allows easy rollback
 - **Callable Services**: Integrate with automations via Home Assistant services
 
 ## Installation
