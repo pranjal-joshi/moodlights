@@ -4,10 +4,10 @@
 
 Easy mood-based light management for Home Assistant.
 
-[![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights?style=for-the-badge&logo=github&logoColor=%2341BDF5&label=RELEASE&color=%2341BDF5)](https://github.com/pranjal-joshi/moodlights/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights?style=for-the-badge&logo=github&logoColor=white&label=RELEASE&color=10B981)](https://github.com/pranjal-joshi/moodlights/releases)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/pranjal-joshi/moodlights/total?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=%2341BDF5&label=HACS%20DOWNLOADS&color=%2341BDF5)
-[![License](https://img.shields.io/github/license/pranjal-joshi/moodlights?style=for-the-badge&logo=scroll&logoColor=%2341BDF5&label=LICENSE&color=%2341BDF5)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12+-41BDF5?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/pranjal-joshi/moodlights?style=for-the-badge&logo=scroll&logoColor=white&label=LICENSE&color=orange)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
 ## Features
 
