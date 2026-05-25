@@ -21,29 +21,21 @@ Fixes/Implements: #(issue or feature number)
 - [ ] Tested on Home Assistant version: ___________
 
 ### Test Coverage
-<!-- Run: pytest --cov=custom_components --cov-report=html tests/ -->
 - [ ] New code is covered by tests
 - [ ] All existing tests pass locally
 
 ## ✅ Checklist
 
-- [ ] Code follows [coding standards](CONTRIBUTING.md#coding-standards) (PEP 8, Black, Ruff)
+- [ ] Code follows coding standards (PEP 8, Black, Ruff)
 - [ ] I have commented my code (especially complex logic)
-- [ ] I have updated documentation (README, CONTRIBUTING, etc.)
+- [ ] I have updated documentation (README, etc.)
 - [ ] My changes generate no new warnings
 - [ ] I have added/updated tests for my changes
-- [ ] All tests pass: `pytest tests/`
-- [ ] Linting passes:
-  - `black custom_components/`
-  - `ruff check custom_components/`
+- [ ] All tests pass
 
-## 🔍 Code Review Checklist (for Maintainers)
+## 📋 Related Links
 
-- [ ] Logic is sound and matches issue requirements
-- [ ] No Home Assistant API violations
-- [ ] No breaking changes (or justified in description)
-- [ ] Tests are meaningful and sufficient
-- [ ] Documentation is clear and complete
+- Related issues/discussions: #
 
 ---
 
