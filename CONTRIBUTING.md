@@ -194,11 +194,65 @@ Open an issue with:
 10. Merge
 ```
 
+## Common Development Issues
+
+### Pre-commit hooks failing?
+
+```bash
+# Skip on first run if needed
+git commit --no-verify
+
+# Then set up hooks properly
+pre-commit install
+pre-commit run --all-files
+```
+
+### Tests failing locally but pass in CI?
+
+- Ensure you're using Python 3.12+: `python --version`
+- Clear pytest cache: `rm -rf .pytest_cache`
+- Reinstall dependencies: `pip install -e .[dev]` or `uv sync --extra dev`
+
+### Type checking errors?
+
+```bash
+# Run mypy manually (if configured)
+mypy custom_components/moodlights/
+```
+
+### Import/module not found errors?
+
+```bash
+# Install in development mode
+pip install -e .
+```
+
+## Architecture Overview
+
+```
+custom_components/moodlights/
+├── __init__.py              # Integration setup
+├── config_flow.py           # UI configuration flow
+├── const.py                 # Constants & defaults
+├── mood_manager.py          # Core mood logic
+├── state_manager.py         # State save/restore
+├── services.py              # Service handlers
+├── entity_base.py           # Base entity classes
+├── manifest.json            # Integration metadata
+└── strings.json             # UI localization
+```
+
+**Key Concepts:**
+- **Mood Entity**: Represents a mood configuration (brightness, color, etc.)
+- **State Stack**: FIFO queue storing up to 3 previous states per mood
+- **Services**: `activate_mood`, `restore_previous`, `save_state`
+
 ## Questions?
 
 - Open a [discussion](https://github.com/pranjal-joshi/moodlights/discussions)
 - Check existing issues and discussions
+- Read [Home Assistant developer docs](https://developers.home-assistant.io/)
 
 ---
 
-Thank you for contributing to MoodLights!
+Thank you for contributing to MoodLights! 🎭

@@ -1,8 +1,24 @@
 {
   "name": "Mood Lights",
+  "description": "One-click smart lighting presets with state backup and instant revert. Perfect for movie nights, gaming, automations, and more.",
+  "domains": ["light", "cover"],
+  "documentation": "https://github.com/pranjal-joshi/moodlights",
+  "issues": "https://github.com/pranjal-joshi/moodlights/issues",
+  "discussions": "https://github.com/pranjal-joshi/moodlights/discussions",
   "zip_release": true,
   "filename": "moodlights.zip",
   "hide_default_branch": false,
   "homeassistant": "2024.10.0",
-  "hacs": "1.32.0"
+  "hacs": "1.32.0",
+  "requirements": [],
+  "topics": [
+    "lighting",
+    "automation",
+    "home-automation",
+    "smart-home",
+    "presets",
+    "home-assistant-integration",
+    "cover-control",
+    "ambiance"
+  ]
 }
