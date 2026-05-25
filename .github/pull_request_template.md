@@ -37,6 +37,3 @@ Fixes/Implements: #(issue or feature number)
 
 - Related issues/discussions: #
 
----
-
-**Co-authored-by:** CyberClaw <noreply@openclaw.ai>
