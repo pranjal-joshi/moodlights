@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-from .const import LOGGER
-
 DEFAULT_MAX_STATES = 1
 
 
@@ -149,8 +147,12 @@ class StateManager:
         return await self._restore_state(previous_state)
 
     async def _restore_state(self, mood_state: MoodState) -> bool:
-        """Restore a specific mood state."""
-        tasks = []
+        """Restore a specific mood state.
+
+        Processes lights sequentially to avoid platform-level conflicts
+        when multiple turn_on calls with attributes hit the same integration.
+        """
+        restored_any = False
 
         for light_state in mood_state.light_states:
             service_data: dict[str, Any] = {"entity_id": light_state.entity_id}
@@ -166,56 +168,68 @@ class StateManager:
                     service_data["color_temp_kelvin"] = light_state.color_temp_kelvin
                 elif light_state.color_temp is not None:
                     service_data["color_temp"] = light_state.color_temp
-                # Prefer rgb over xy; never send both to avoid conflicts
-                if light_state.rgb_color is not None:
+                # Only one color descriptor allowed — elif chain prevents exclusion group conflict
+                elif light_state.rgb_color is not None:
                     service_data["rgb_color"] = light_state.rgb_color
                 elif light_state.xy_color is not None:
                     service_data["xy_color"] = light_state.xy_color
                 if light_state.effect is not None:
                     service_data["effect"] = light_state.effect
 
-            tasks.append(self._hass.services.async_call("light", service, service_data))
+            try:
+                await self._hass.services.async_call(
+                    "light", service, service_data, blocking=True
+                )
+                restored_any = True
+            except Exception:  # noqa: BLE001
+                pass
 
+        # Covers can still run in parallel (different physical devices)
+        cover_tasks = []
         for cover_state in mood_state.cover_states:
             if cover_state.current_position is not None:
-                tasks.append(
+                cover_tasks.append(
                     self._hass.services.async_call(
                         "cover",
                         "set_cover_position",
                         {"entity_id": cover_state.entity_id, "position": cover_state.current_position},
+                        blocking=True,
                     )
                 )
             elif cover_state.state == "closed":
-                tasks.append(
+                cover_tasks.append(
                     self._hass.services.async_call(
                         "cover",
                         "close_cover",
                         {"entity_id": cover_state.entity_id},
+                        blocking=True,
                     )
                 )
             else:
-                tasks.append(
+                cover_tasks.append(
                     self._hass.services.async_call(
                         "cover",
                         "open_cover",
                         {"entity_id": cover_state.entity_id},
+                        blocking=True,
                     )
                 )
 
             if cover_state.current_tilt_position is not None:
-                tasks.append(
+                cover_tasks.append(
                     self._hass.services.async_call(
                         "cover",
                         "set_cover_tilt_position",
                         {"entity_id": cover_state.entity_id, "tilt_position": cover_state.current_tilt_position},
+                        blocking=True,
                     )
                 )
 
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-            return True
+        if cover_tasks:
+            await asyncio.gather(*cover_tasks, return_exceptions=True)
+            restored_any = True
 
-        return False
+        return restored_any
 
     def clear_states(self, mood_id: str) -> None:
         """Clear saved states for a mood."""

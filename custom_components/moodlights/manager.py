@@ -155,7 +155,7 @@ class MoodManager:
             if power is False:
                 tasks.append(
                     self._hass.services.async_call(
-                        "light", "turn_off", {"entity_id": entity_id}
+                        "light", "turn_off", {"entity_id": entity_id}, blocking=True
                     )
                 )
             else:
@@ -180,7 +180,9 @@ class MoodManager:
                         service_data["rgb_color"] = rgb_color
 
                 tasks.append(
-                    self._hass.services.async_call("light", "turn_on", service_data)
+                    self._hass.services.async_call(
+                        "light", "turn_on", service_data, blocking=True
+                    )
                 )
 
         if tasks:
@@ -203,6 +205,7 @@ class MoodManager:
                         "cover",
                         "set_cover_position",
                         {"entity_id": entity_id, "position": position},
+                        blocking=True,
                     )
                 )
 
@@ -212,6 +215,7 @@ class MoodManager:
                         "cover",
                         "set_cover_tilt_position",
                         {"entity_id": entity_id, "tilt_position": tilt_position},
+                        blocking=True,
                     )
                 )
 

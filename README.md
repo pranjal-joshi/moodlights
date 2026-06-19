@@ -7,7 +7,7 @@
 Turn your lights into a mood engine. Create named lighting presets, activate them with a single click, and instantly revert when you're done. Perfect for automations, manual control, and everything in between.
 
 [![GitHub Release](https://img.shields.io/github/v/release/pranjal-joshi/moodlights?style=for-the-badge&logo=github&logoColor=white&label=RELEASE&color=10B981)](https://github.com/pranjal-joshi/moodlights/releases)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/pranjal-joshi/moodlights/total?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=%2341BDF5&label=HACS%20DOWNLOADS&color=%2341BDF5)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/pranjal-joshi/moodlights/total?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=2341BDF5&label=HACS%20Downloads&color=341BDF5)
 [![License](https://img.shields.io/github/license/pranjal-joshi/moodlights?style=for-the-badge&logo=scroll&logoColor=white&label=LICENSE&color=orange)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
