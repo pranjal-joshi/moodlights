@@ -18,6 +18,7 @@ Turn your lights into a mood engine. Create named lighting presets, activate the
 | One-click mood activation | ✅ | ✅ | ✅ |
 | **Auto state backup before change** | ❌ | ❌ | ✅ |
 | **One-button revert** | ❌ | ❌ | ✅ |
+| **Auto-revert timer** | ❌ | ❌ | ✅ |
 | Per-light brightness + color config | ✅ | Limited | ✅ |
 | Blind/curtain/cover support | Limited | ❌ | ✅ |
 | Built for automations & buttons | ✅ | ✅ | ✅ |
@@ -37,6 +38,7 @@ Turn your lights into a mood engine. Create named lighting presets, activate the
 - ✅ **Per-Light Config** — Set brightness, color temperature, and RGB for each light independently
 - ✅ **Cover Support** — Control blinds, curtains, and shades with position and tilt
 - ✅ **Auto State Backup** — Saves up to 3 light/cover states before mood changes (instant rollback)
+- ✅ **Auto-Revert Timer** — Per-mood toggle and duration. Mood auto-reverts after a set time. Countdown visible on dashboard.
 - ✅ **Automation-Ready** — Call via services for buttons, remotes, time-based triggers, or anything else
 
 ## 🚀 Installation
@@ -102,9 +104,24 @@ data:
   mood_name: "Movie Night"
 ```
 
+#### Activate with Auto-Revert (override timer)
+```yaml
+service: moodlights.activate_mood
+data:
+  mood_name: "Movie Night"
+  duration: 120  # auto-revert after 120 minutes
+```
+
 #### Restore Previous State
 ```yaml
 service: moodlights.restore_previous
+data:
+  mood_name: "Movie Night"
+```
+
+#### Cancel Auto-Revert Timer
+```yaml
+service: moodlights.cancel_auto_revert
 data:
   mood_name: "Movie Night"
 ```
@@ -209,6 +226,16 @@ automation:
 4. Click "Revert" → Restores lights back to Gaming settings
 5. Click "Revert" again → Restores lights back to Movie Night state
 6. Click "Revert" again → Back to original Kitchen 50%
+
+### Auto-Revert Timer
+
+Each mood gets three dashboard controls:
+
+- **Revert Timer** (switch) — Enable/disable auto-revert for this mood
+- **Revert After** (number) — Set duration in minutes (1 min – 24 hrs). Greyed out when timer is off.
+- **Revert Countdown** (sensor) — Shows remaining time, auto-formatted by HA
+
+Toggle the switch ON, set your duration, activate the mood — it auto-reverts when the timer finishes. You can also pass `duration` in the `activate_mood` service call to override per-activation.
 
 ## Requirements
 

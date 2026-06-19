@@ -41,3 +41,8 @@ COVER_SUPPORT_SET_TILT_POSITION = 128
 # Cover-related extra state attribute keys
 ATTR_CONFIGURED_COVERS = "configured_covers"
 ATTR_MISMATCHED_COVERS = "mismatched_covers"
+
+# Auto-revert timer
+DEFAULT_REVERT_DURATION_MIN = 60  # minutes
+MIN_REVERT_DURATION_MIN = 1  # 1 minute
+MAX_REVERT_DURATION_MIN = 1440  # 24 hours
