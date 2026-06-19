@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +23,7 @@ from .const import (
     CONF_LIGHT_RGB_COLOR,
     CONF_LIGHTS,
     CONF_MOOD_NAME,
+    DEFAULT_REVERT_DURATION_MIN,
     LOGGER,
 )
 from .state import DEFAULT_MAX_STATES, StateManager
@@ -50,7 +53,15 @@ class MoodManager:
 
         opts = options or {}
         max_states = opts.get("max_states") if opts else DEFAULT_MAX_STATES
-        self._state_manager = StateManager(hass, max_states=max_states or DEFAULT_MAX_STATES)
+        self._state_manager = StateManager(
+            hass, max_states=max_states or DEFAULT_MAX_STATES
+        )
+
+        # Auto-revert timer state (per mood_id)
+        self._auto_revert_enabled: dict[str, bool] = {}
+        self._auto_revert_duration: dict[str, int] = {}  # minutes
+        self._revert_timers: dict[str, Callable[[], None]] = {}  # cancel callbacks
+        self._revert_deadlines: dict[str, float] = {}  # monotonic deadline
 
     async def load_moods(self, config: dict) -> None:
         """Load moods from config."""
@@ -68,8 +79,15 @@ class MoodManager:
             )
             self._moods[mood_id] = mood_config
 
-    async def activate_mood(self, mood_id: str, preset_name: str = "") -> bool:
-        """Activate a mood, saving current light and cover states first."""
+    async def activate_mood(self, mood_id: str, preset_name: str = "", duration: int | None = None) -> bool:
+        """Activate a mood, saving current light and cover states first.
+
+        Args:
+            mood_id: The mood identifier.
+            preset_name: Optional label for the saved state snapshot.
+            duration: Optional override duration in minutes to auto-revert.
+                      If None, uses the mood's configured duration (if enabled).
+        """
         mood_config = self._moods.get(mood_id)
         if not mood_config:
             return False
@@ -86,10 +104,15 @@ class MoodManager:
         await self._apply_light_config(mood_config.light_config)
         await self._apply_cover_config(mood_config.cover_config)
 
+        # Start auto-revert timer if applicable
+        self._schedule_auto_revert(mood_id, duration)
+
         return True
 
     async def restore_previous(self, mood_id: str) -> bool:
         """Restore the previous state for a mood."""
+        # Cancel any active auto-revert timer (avoid double revert)
+        self.cancel_auto_revert(mood_id)
         return await self._state_manager.restore_previous(mood_id)
 
     async def save_state(self, mood_id: str, preset_name: str = "") -> bool:
@@ -131,7 +154,9 @@ class MoodManager:
 
             if power is False:
                 tasks.append(
-                    self._hass.services.async_call("light", "turn_off", {"entity_id": entity_id})
+                    self._hass.services.async_call(
+                        "light", "turn_off", {"entity_id": entity_id}
+                    )
                 )
             else:
                 service_data: dict[str, Any] = {"entity_id": entity_id}
@@ -193,7 +218,119 @@ class MoodManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    # ------------------------------------------------------------------
+    # Auto-revert timer management
+    # ------------------------------------------------------------------
+
+    def set_auto_revert_enabled(self, mood_id: str, enabled: bool) -> None:
+        """Set whether auto-revert is enabled for a mood (called by switch entity)."""
+        self._auto_revert_enabled[mood_id] = enabled
+        if not enabled:
+            # Disable: cancel any running timer immediately
+            self.cancel_auto_revert(mood_id)
+        elif enabled and self._state_manager.can_restore(mood_id):
+            # Enable while mood is already active (has saved state) — start timer now
+            self._schedule_auto_revert(mood_id)
+
+    def set_auto_revert_duration(self, mood_id: str, duration_min: int) -> None:
+        """Set the auto-revert duration for a mood in minutes (called by number entity)."""
+        self._auto_revert_duration[mood_id] = duration_min
+
+    def is_auto_revert_enabled(self, mood_id: str) -> bool:
+        """Check if auto-revert is enabled for a mood."""
+        return self._auto_revert_enabled.get(mood_id, False)
+
+    def get_auto_revert_duration(self, mood_id: str) -> int:
+        """Get the configured auto-revert duration in minutes for a mood."""
+        return self._auto_revert_duration.get(mood_id, DEFAULT_REVERT_DURATION_MIN)
+
+    def get_auto_revert_remaining(self, mood_id: str) -> float | None:
+        """Get remaining seconds until auto-revert, or None if no timer is active."""
+        deadline = self._revert_deadlines.get(mood_id)
+        if deadline is None:
+            return None
+        remaining = deadline - time.monotonic()
+        return max(0.0, remaining)
+
+    def is_timer_active(self, mood_id: str) -> bool:
+        """Check if an auto-revert timer is currently running."""
+        return mood_id in self._revert_deadlines
+
+    def cancel_auto_revert(self, mood_id: str) -> bool:
+        """Cancel the auto-revert timer for a mood without restoring.
+
+        Returns True if a timer was cancelled, False if none was active.
+        """
+        cancel_cb = self._revert_timers.pop(mood_id, None)
+        self._revert_deadlines.pop(mood_id, None)
+        if cancel_cb is not None:
+            cancel_cb()
+            return True
+        return False
+
+    def _schedule_auto_revert(self, mood_id: str, duration_override: int | None = None) -> None:
+        """Schedule an auto-revert timer for a mood.
+
+        Args:
+            mood_id: The mood identifier.
+            duration_override: Override duration in minutes. If None, uses the
+                               mood's switch/number entity state.
+        """
+        from homeassistant.helpers.event import async_call_later
+
+        # Cancel any existing timer for this mood
+        self.cancel_auto_revert(mood_id)
+
+        # Determine duration
+        if duration_override is not None:
+            duration_min = duration_override
+        elif self._auto_revert_enabled.get(mood_id, False):
+            duration_min = self._auto_revert_duration.get(mood_id, DEFAULT_REVERT_DURATION_MIN)
+        else:
+            # Auto-revert not enabled and no override — do nothing
+            return
+
+        delay_seconds = duration_min * 60
+
+        # Schedule the callback
+        cancel = async_call_later(
+            self._hass, delay_seconds, self._make_revert_callback(mood_id)
+        )
+
+        self._revert_timers[mood_id] = cancel
+        self._revert_deadlines[mood_id] = time.monotonic() + delay_seconds
+        LOGGER.debug(
+            "Auto-revert timer scheduled for mood '%s' in %d minutes",
+            mood_id,
+            duration_min,
+        )
+
+    def _make_revert_callback(self, mood_id: str):
+        """Create a callback for async_call_later that reverts a mood."""
+
+        async def _revert_callback(_now) -> None:
+            """Revert the mood when the timer fires."""
+            # Clean up timer tracking
+            self._revert_timers.pop(mood_id, None)
+            self._revert_deadlines.pop(mood_id, None)
+
+            # Restore the previous state
+            success = await self._state_manager.restore_previous(mood_id)
+            if success:
+                LOGGER.info("Auto-reverted mood '%s'", mood_id)
+            else:
+                LOGGER.warning(
+                    "Auto-revert for mood '%s' failed: no saved state", mood_id
+                )
+
+        return _revert_callback
+
+    # ------------------------------------------------------------------
+
     async def async_unload(self) -> None:
         """Unload the manager."""
+        # Cancel all active auto-revert timers
+        for mood_id in list(self._revert_timers):
+            self.cancel_auto_revert(mood_id)
         self._state_manager.clear_all_states()
         self._moods.clear()

@@ -53,12 +53,27 @@
           "off": "Inactive"
         }
       }
+    },
+    "switch": {
+      "revert_timer": {
+        "name": "Revert Timer"
+      }
+    },
+    "number": {
+      "revert_after": {
+        "name": "Revert After"
+      }
+    },
+    "sensor": {
+      "revert_countdown": {
+        "name": "Revert Countdown"
+      }
     }
   },
   "services": {
     "activate_mood": {
       "name": "Activate Mood",
-      "description": "Activate a mood, saving current light and cover states first.",
+      "description": "Activate a mood, saving current light and cover states first. Optionally auto-revert after a duration.",
       "fields": {
         "mood_name": {
           "name": "Mood Name",
@@ -67,12 +82,16 @@
         "preset_name": {
           "name": "Snapshot Label",
           "description": "Optional label for the light state snapshot saved before activation."
+        },
+        "duration": {
+          "name": "Auto-Revert After",
+          "description": "Automatically revert after this many minutes. Overrides the mood's Revert After setting for this activation."
         }
       }
     },
     "restore_previous": {
       "name": "Restore Previous",
-      "description": "Restore the lights and covers for a mood to their last saved state.",
+      "description": "Restore the lights and covers for a mood to their last saved state. Also cancels any active auto-revert timer.",
       "fields": {
         "mood_name": {
           "name": "Mood Name",
@@ -91,6 +110,16 @@
         "preset_name": {
           "name": "Snapshot Label",
           "description": "Optional label for this snapshot."
+        }
+      }
+    },
+    "cancel_auto_revert": {
+      "name": "Cancel Auto-Revert",
+      "description": "Cancel the active auto-revert timer for a mood without restoring. The mood stays in its current state.",
+      "fields": {
+        "mood_name": {
+          "name": "Mood Name",
+          "description": "The name of the mood whose auto-revert timer to cancel."
         }
       }
     }

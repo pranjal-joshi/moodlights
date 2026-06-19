@@ -18,14 +18,16 @@ from homeassistant.helpers import config_validation as cv
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS = [Platform.BUTTON, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.NUMBER, Platform.SENSOR]
 
 ATTR_MOOD_NAME = "mood_name"
 ATTR_PRESET_NAME = "preset_name"
+ATTR_DURATION = "duration"
 
 SERVICE_ACTIVATE_MOOD = "activate_mood"
 SERVICE_RESTORE_PREVIOUS = "restore_previous"
 SERVICE_SAVE_STATE = "save_state"
+SERVICE_CANCEL_AUTO_REVERT = "cancel_auto_revert"
 
 
 def _build_schemas() -> tuple:
@@ -37,6 +39,9 @@ def _build_schemas() -> tuple:
         {
             vol.Required(ATTR_MOOD_NAME): cv.string,
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
+            vol.Optional(ATTR_DURATION): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=1440)
+            ),
         }
     )
     restore = vol.Schema(
@@ -50,7 +55,12 @@ def _build_schemas() -> tuple:
             vol.Optional(ATTR_PRESET_NAME, default=""): cv.string,
         }
     )
-    return activate, restore, save
+    cancel_auto_revert = vol.Schema(
+        {
+            vol.Required(ATTR_MOOD_NAME): cv.string,
+        }
+    )
+    return activate, restore, save, cancel_auto_revert
 
 
 def _resolve_mood(hass: HomeAssistant, mood_name: str):
@@ -79,13 +89,14 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up the MoodLights integration."""
     hass.data.setdefault(DOMAIN, {})
 
-    schema_activate, schema_restore, schema_save = _build_schemas()
+    schema_activate, schema_restore, schema_save, schema_cancel = _build_schemas()
 
     async def handle_activate_mood(call: ServiceCall) -> None:
         """Handle the activate_mood service call."""
         manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
-        await manager.activate_mood(mood.mood_id, preset_name=preset_name)
+        duration = call.data.get(ATTR_DURATION)
+        await manager.activate_mood(mood.mood_id, preset_name=preset_name, duration=duration)
 
     async def handle_restore_previous(call: ServiceCall) -> None:
         """Handle the restore_previous service call."""
@@ -101,6 +112,15 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
         manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
         preset_name = call.data.get(ATTR_PRESET_NAME, "")
         await manager.save_state(mood.mood_id, preset_name=preset_name)
+
+    async def handle_cancel_auto_revert(call: ServiceCall) -> None:
+        """Handle the cancel_auto_revert service call."""
+        manager, mood = _resolve_mood(hass, call.data[ATTR_MOOD_NAME])
+        cancelled = manager.cancel_auto_revert(mood.mood_id)
+        if not cancelled:
+            raise ServiceValidationError(
+                f"No active auto-revert timer for mood '{mood.name}'."
+            )
 
     hass.services.async_register(
         DOMAIN,
@@ -119,6 +139,12 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
         SERVICE_SAVE_STATE,
         handle_save_state,
         schema=schema_save,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CANCEL_AUTO_REVERT,
+        handle_cancel_auto_revert,
+        schema=schema_cancel,
     )
     LOGGER.debug("MoodLights services registered")
 
